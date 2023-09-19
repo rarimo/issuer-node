@@ -112,9 +112,10 @@ func main() {
 	identityRepo := repositories.NewIdentity()
 	claimsRepo := repositories.NewClaims()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
+	merkleTreeRootsRepository := repositories.NewMerkleTreeNodesRepository()
 	identityStateRepo := repositories.NewIdentityState()
 	revocationRepository := repositories.NewRevocation()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtService := services.NewIdentityMerkleTrees(mtRepo, merkleTreeRootsRepository)
 
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()

@@ -241,6 +241,17 @@ func (i *identity) GetLatestStateByID(ctx context.Context, identifier core.DID) 
 	return state, nil
 }
 
+func (i *identity) GetStateByHash(ctx context.Context, hash string) (*domain.IdentityState, error) {
+	state, err := i.identityStateRepository.GetStateByHash(ctx, i.storage.Pgx, hash)
+	if err != nil {
+		return nil, err
+	}
+	if state == nil {
+		return nil, fmt.Errorf("state is not found for hash: %s", hash)
+	}
+	return state, nil
+}
+
 // GetKeyIDFromAuthClaim finds BJJ KeyID of auth claim
 // in registered key providers
 func (i *identity) GetKeyIDFromAuthClaim(ctx context.Context, authClaim *domain.Claim) (kms.KeyID, error) {

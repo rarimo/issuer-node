@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/iden3/go-merkletree-sql/v2"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
@@ -184,10 +186,13 @@ type ClaimsService interface {
 	RevokeAllFromConnection(ctx context.Context, connID uuid.UUID, issuerID core.DID) error
 	GetRevocationStatus(ctx context.Context, issuerDID core.DID, nonce uint64) (*verifiable.RevocationStatus, error)
 	GetByID(ctx context.Context, issID *core.DID, id uuid.UUID) (*domain.Claim, error)
+	GetBySingleID(ctx context.Context, id uuid.UUID) (*domain.Claim, error)
 	Agent(ctx context.Context, req *AgentRequest) (*domain.Agent, error)
 	GetAuthClaim(ctx context.Context, did *core.DID) (*domain.Claim, error)
 	GetAuthClaimForPublishing(ctx context.Context, did *core.DID, state string) (*domain.Claim, error)
 	UpdateClaimsMTPAndState(ctx context.Context, currentState *domain.IdentityState) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByStateIDWithMTPProof(ctx context.Context, did *core.DID, state string) ([]*domain.Claim, error)
+	GetMTProof(ctx context.Context, leafKey *big.Int, root *merkletree.Hash, merkleTreeID int64) (*merkletree.Proof, error)
+	GetMTByKey(ctx context.Context, key string) (*domain.MerkleTreeNode, error)
 }

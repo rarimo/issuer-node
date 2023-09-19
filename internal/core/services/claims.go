@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"net/url"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	core "github.com/iden3/go-iden3-core"
+	sql "github.com/iden3/go-merkletree-sql/db/pgx/v2"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/merklize"
 	"github.com/iden3/go-schema-processor/processor"
@@ -20,6 +20,7 @@ import (
 	"github.com/iden3/iden3comm/protocol"
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/jackc/pgx/v4"
+	"github.com/pkg/errors"
 
 	"github.com/polygonid/sh-id-platform/internal/common"
 	"github.com/polygonid/sh-id-platform/internal/core/domain"
@@ -287,6 +288,18 @@ func (c *claim) GetByID(ctx context.Context, issID *core.DID, id uuid.UUID) (*do
 	return claim, nil
 }
 
+func (c *claim) GetBySingleID(ctx context.Context, id uuid.UUID) (*domain.Claim, error) {
+	claim, err := c.icRepo.GetById(ctx, c.storage.Pgx, id)
+	if err != nil {
+		if errors.Is(err, repositories.ErrClaimDoesNotExist) {
+			return nil, ErrClaimNotFound
+		}
+		return nil, err
+	}
+
+	return claim, nil
+}
+
 func (c *claim) Agent(ctx context.Context, req *ports.AgentRequest) (*domain.Agent, error) {
 	exists, err := c.identitySrv.Exists(ctx, *req.IssuerDID)
 	if err != nil {
@@ -475,6 +488,32 @@ func (c *claim) UpdateClaimsMTPAndState(ctx context.Context, currentState *domai
 
 func (c *claim) GetByStateIDWithMTPProof(ctx context.Context, did *core.DID, state string) ([]*domain.Claim, error) {
 	return c.icRepo.GetByStateIDWithMTPProof(ctx, c.storage.Pgx, did, state)
+}
+
+func (c *claim) GetMTProof(
+	ctx context.Context, leafKey *big.Int, root *merkletree.Hash, merkleTreeID int64,
+) (*merkletree.Proof, error) {
+	merkleTree, err := merkletree.NewMerkleTree(
+		ctx, sql.NewSqlStorage(c.storage.Pgx, uint64(merkleTreeID)), mtDepth,
+	)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get merkle tree (merkleTreeID: %v)", merkleTreeID)
+	}
+
+	mtp, _, err := merkleTree.GenerateProof(ctx, leafKey, root)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to generate merkle tree proof")
+	}
+
+	return mtp, nil
+}
+
+func (c *claim) GetMTByKey(ctx context.Context, key string) (*domain.MerkleTreeNode, error) {
+	iMT, err := c.mtService.GetMTByKey(ctx, c.storage.Pgx, key)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get identity merkle tree by ID")
+	}
+	return iMT, nil
 }
 
 func (c *claim) revoke(ctx context.Context, did *core.DID, nonce uint64, description string, pgx db.Querier) error {

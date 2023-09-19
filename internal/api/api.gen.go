@@ -19,6 +19,13 @@ const (
 	BasicAuthScopes = "basicAuth.Scopes"
 )
 
+// AddUserRequest defines model for AddUserRequest.
+type AddUserRequest struct {
+	Did      string `json:"did"`
+	Login    string `json:"login"`
+	Password string `json:"password"`
+}
+
 // AgentResponse defines model for AgentResponse.
 type AgentResponse struct {
 	Body     interface{} `json:"body"`
@@ -74,6 +81,24 @@ type CredentialSchema struct {
 // GenericErrorMessage defines model for GenericErrorMessage.
 type GenericErrorMessage struct {
 	Message string `json:"message"`
+}
+
+// GetClaimMTPResponse defines model for GetClaimMTPResponse.
+type GetClaimMTPResponse struct {
+	Issuer struct {
+		ClaimTreeRoot      *string `json:"claimTreeRoot,omitempty"`
+		RevocationTreeRoot *string `json:"revocationTreeRoot,omitempty"`
+		RootOfRoots        *string `json:"rootOfRoots,omitempty"`
+		State              *string `json:"state,omitempty"`
+	} `json:"issuer"`
+	Mtp struct {
+		Existence bool `json:"existence"`
+		NodeAux   *struct {
+			Key   *string `json:"key,omitempty"`
+			Value *string `json:"value,omitempty"`
+		} `json:"node_aux,omitempty"`
+		Siblings *[]string `json:"siblings"`
+	} `json:"mtp"`
 }
 
 // GetClaimQrCodeResponse defines model for GetClaimQrCodeResponse.
@@ -177,6 +202,9 @@ type PathIdentifier = string
 // PathNonce defines model for pathNonce.
 type PathNonce = int64
 
+// PathStateHash defines model for pathStateHash.
+type PathStateHash = string
+
 // N400 defines model for 400.
 type N400 = GenericErrorMessage
 
@@ -201,6 +229,12 @@ type N500CreateIdentity struct {
 
 // AgentTextBody defines parameters for Agent.
 type AgentTextBody = string
+
+// GetClaimMTPParams defines parameters for GetClaimMTP.
+type GetClaimMTPParams struct {
+	// StateHash Identity state hash
+	StateHash *PathStateHash `form:"state_hash,omitempty" json:"state_hash,omitempty"`
+}
 
 // GetClaimsParams defines parameters for GetClaims.
 type GetClaimsParams struct {
@@ -232,6 +266,9 @@ type AgentTextRequestBody = AgentTextBody
 // CreateIdentityJSONRequestBody defines body for CreateIdentity for application/json ContentType.
 type CreateIdentityJSONRequestBody = CreateIdentityRequest
 
+// AddUserJSONRequestBody defines body for AddUser for application/json ContentType.
+type AddUserJSONRequestBody = AddUserRequest
+
 // CreateClaimJSONRequestBody defines body for CreateClaim for application/json ContentType.
 type CreateClaimJSONRequestBody = CreateClaimRequest
 
@@ -255,12 +292,18 @@ type ServerInterface interface {
 	// Agent
 	// (POST /v1/agent)
 	Agent(w http.ResponseWriter, r *http.Request)
+	// Get Claim MTP
+	// (GET /v1/claims/{id}/mtp)
+	GetClaimMTP(w http.ResponseWriter, r *http.Request, id PathClaim, params GetClaimMTPParams)
 	// Get Identities
 	// (GET /v1/identities)
 	GetIdentities(w http.ResponseWriter, r *http.Request)
 	// Create Identity
 	// (POST /v1/identities)
 	CreateIdentity(w http.ResponseWriter, r *http.Request)
+	// Add user
+	// (POST /v1/users)
+	AddUser(w http.ResponseWriter, r *http.Request)
 	// Get Claims
 	// (GET /v1/{identifier}/claims)
 	GetClaims(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, params GetClaimsParams)
@@ -388,6 +431,43 @@ func (siw *ServerInterfaceWrapper) Agent(w http.ResponseWriter, r *http.Request)
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// GetClaimMTP operation middleware
+func (siw *ServerInterfaceWrapper) GetClaimMTP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id PathClaim
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "id", runtime.ParamLocationPath, chi.URLParam(r, "id"), &id)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetClaimMTPParams
+
+	// ------------- Optional query parameter "state_hash" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "state_hash", r.URL.Query(), &params.StateHash)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state_hash", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetClaimMTP(w, r, id, params)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // GetIdentities operation middleware
 func (siw *ServerInterfaceWrapper) GetIdentities(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -413,6 +493,23 @@ func (siw *ServerInterfaceWrapper) CreateIdentity(w http.ResponseWriter, r *http
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateIdentity(w, r)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// AddUser operation middleware
+func (siw *ServerInterfaceWrapper) AddUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{""})
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddUser(w, r)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -871,10 +968,16 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/v1/agent", wrapper.Agent)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/claims/{id}/mtp", wrapper.GetClaimMTP)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/identities", wrapper.GetIdentities)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/v1/identities", wrapper.CreateIdentity)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/v1/users", wrapper.AddUser)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/{identifier}/claims", wrapper.GetClaims)
@@ -1050,6 +1153,51 @@ func (response Agent500JSONResponse) VisitAgentResponse(w http.ResponseWriter) e
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetClaimMTPRequestObject struct {
+	Id     PathClaim `json:"id"`
+	Params GetClaimMTPParams
+}
+
+type GetClaimMTPResponseObject interface {
+	VisitGetClaimMTPResponse(w http.ResponseWriter) error
+}
+
+type GetClaimMTP200JSONResponse GetClaimMTPResponse
+
+func (response GetClaimMTP200JSONResponse) VisitGetClaimMTPResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetClaimMTP400JSONResponse struct{ N400JSONResponse }
+
+func (response GetClaimMTP400JSONResponse) VisitGetClaimMTPResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetClaimMTP404JSONResponse struct{ N404JSONResponse }
+
+func (response GetClaimMTP404JSONResponse) VisitGetClaimMTPResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetClaimMTP500JSONResponse struct{ N500JSONResponse }
+
+func (response GetClaimMTP500JSONResponse) VisitGetClaimMTPResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetIdentitiesRequestObject struct {
 }
 
@@ -1122,6 +1270,50 @@ func (response CreateIdentity401JSONResponse) VisitCreateIdentityResponse(w http
 type CreateIdentity500JSONResponse struct{ N500CreateIdentityJSONResponse }
 
 func (response CreateIdentity500JSONResponse) VisitCreateIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddUserRequestObject struct {
+	Body *AddUserJSONRequestBody
+}
+
+type AddUserResponseObject interface {
+	VisitAddUserResponse(w http.ResponseWriter) error
+}
+
+type AddUser200JSONResponse GetClaimQrCodeResponse
+
+func (response AddUser200JSONResponse) VisitAddUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddUser400JSONResponse struct{ N400JSONResponse }
+
+func (response AddUser400JSONResponse) VisitAddUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddUser404JSONResponse struct{ N404JSONResponse }
+
+func (response AddUser404JSONResponse) VisitAddUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddUser500JSONResponse struct{ N500JSONResponse }
+
+func (response AddUser500JSONResponse) VisitAddUserResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -1524,12 +1716,18 @@ type StrictServerInterface interface {
 	// Agent
 	// (POST /v1/agent)
 	Agent(ctx context.Context, request AgentRequestObject) (AgentResponseObject, error)
+	// Get Claim MTP
+	// (GET /v1/claims/{id}/mtp)
+	GetClaimMTP(ctx context.Context, request GetClaimMTPRequestObject) (GetClaimMTPResponseObject, error)
 	// Get Identities
 	// (GET /v1/identities)
 	GetIdentities(ctx context.Context, request GetIdentitiesRequestObject) (GetIdentitiesResponseObject, error)
 	// Create Identity
 	// (POST /v1/identities)
 	CreateIdentity(ctx context.Context, request CreateIdentityRequestObject) (CreateIdentityResponseObject, error)
+	// Add user
+	// (POST /v1/users)
+	AddUser(ctx context.Context, request AddUserRequestObject) (AddUserResponseObject, error)
 	// Get Claims
 	// (GET /v1/{identifier}/claims)
 	GetClaims(ctx context.Context, request GetClaimsRequestObject) (GetClaimsResponseObject, error)
@@ -1738,6 +1936,33 @@ func (sh *strictHandler) Agent(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetClaimMTP operation middleware
+func (sh *strictHandler) GetClaimMTP(w http.ResponseWriter, r *http.Request, id PathClaim, params GetClaimMTPParams) {
+	var request GetClaimMTPRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetClaimMTP(ctx, request.(GetClaimMTPRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetClaimMTP")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetClaimMTPResponseObject); ok {
+		if err := validResponse.VisitGetClaimMTPResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("Unexpected response type: %T", response))
+	}
+}
+
 // GetIdentities operation middleware
 func (sh *strictHandler) GetIdentities(w http.ResponseWriter, r *http.Request) {
 	var request GetIdentitiesRequestObject
@@ -1786,6 +2011,37 @@ func (sh *strictHandler) CreateIdentity(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateIdentityResponseObject); ok {
 		if err := validResponse.VisitCreateIdentityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("Unexpected response type: %T", response))
+	}
+}
+
+// AddUser operation middleware
+func (sh *strictHandler) AddUser(w http.ResponseWriter, r *http.Request) {
+	var request AddUserRequestObject
+
+	var body AddUserJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddUser(ctx, request.(AddUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddUserResponseObject); ok {
+		if err := validResponse.VisitAddUserResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

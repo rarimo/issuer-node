@@ -408,6 +408,60 @@ func (c *claims) GetByIdAndIssuer(ctx context.Context, conn db.Querier, identifi
 	return &claim, err
 }
 
+// GetById get claim by id
+func (c *claims) GetById(ctx context.Context, conn db.Querier, claimID uuid.UUID) (*domain.Claim, error) {
+	claim := domain.Claim{}
+	err := conn.QueryRow(ctx,
+		`SELECT id,
+       				issuer,
+       				schema_hash,
+       				schema_type,
+       				schema_url,
+       				other_identifier,
+       				expiration,
+       				updatable,
+       				version,
+        			rev_nonce,
+       				signature_proof,
+       				mtp_proof,
+       				data,
+       				claims.identifier,
+        			identity_state,
+       				credential_status,
+       				core_claim,
+					mtp,
+					revoked,
+					link_id
+        FROM claims
+        WHERE claims.id = $1`, claimID).Scan(
+		&claim.ID,
+		&claim.Issuer,
+		&claim.SchemaHash,
+		&claim.SchemaType,
+		&claim.SchemaURL,
+		&claim.OtherIdentifier,
+		&claim.Expiration,
+		&claim.Updatable,
+		&claim.Version,
+		&claim.RevNonce,
+		&claim.SignatureProof,
+		&claim.MTPProof,
+		&claim.Data,
+		&claim.Identifier,
+		&claim.IdentityState,
+		&claim.CredentialStatus,
+		&claim.CoreClaim,
+		&claim.MtProof,
+		&claim.Revoked,
+		&claim.LinkID)
+
+	if err != nil && err == pgx.ErrNoRows {
+		return nil, ErrClaimDoesNotExist
+	}
+
+	return &claim, err
+}
+
 // GetAllByIssuerID returns all the claims of the given issuer
 func (c *claims) GetAllByIssuerID(ctx context.Context, conn db.Querier, issuerID core.DID, filter *ports.ClaimsFilter) ([]*domain.Claim, error) {
 	query, args := buildGetAllQueryAndFilters(issuerID, filter)

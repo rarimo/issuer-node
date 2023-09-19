@@ -7,6 +7,8 @@ bin/
 *.so
 *.dylib
 
+config.toml
+
 .env-api
 .env-issuer
 .env-ui

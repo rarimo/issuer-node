@@ -36,12 +36,16 @@ var (
 
 type mtService struct {
 	imtRepo ports.IdentityMerkleTreeRepository
+	mtnRepo ports.MerkleTreeNodesRepository
 }
 
 // NewIdentityMerkleTrees generates a new merkle tree service
-func NewIdentityMerkleTrees(imtRepo ports.IdentityMerkleTreeRepository) ports.MtService {
+func NewIdentityMerkleTrees(
+	imtRepo ports.IdentityMerkleTreeRepository, mtrRepo ports.MerkleTreeNodesRepository,
+) ports.MtService {
 	return &mtService{
 		imtRepo: imtRepo,
+		mtnRepo: mtrRepo,
 	}
 }
 
@@ -107,6 +111,14 @@ func (mts *mtService) GetIdentityMerkleTrees(ctx context.Context, conn db.Querie
 		ImtModels:  imtModels,
 	}
 	return imTrees, nil
+}
+
+func (mts *mtService) GetMTByKey(ctx context.Context, conn db.Querier, key string) (*domain.MerkleTreeNode, error) {
+	iMT, err := mts.mtnRepo.GetByKey(ctx, conn, key)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get identity merkle tree by ID")
+	}
+	return iMT, nil
 }
 
 func findByType(mts []domain.IdentityMerkleTree, tp uint16) *domain.IdentityMerkleTree {

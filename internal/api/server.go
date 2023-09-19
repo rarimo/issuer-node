@@ -2,8 +2,8 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/iden3/go-merkletree-sql/v2"
 	"net/http"
 	"os"
 	"strings"
@@ -16,6 +16,7 @@ import (
 	"github.com/iden3/iden3comm"
 	"github.com/iden3/iden3comm/packers"
 	"github.com/iden3/iden3comm/protocol"
+	"github.com/pkg/errors"
 
 	"github.com/polygonid/sh-id-platform/internal/common"
 	"github.com/polygonid/sh-id-platform/internal/config"
@@ -35,17 +36,19 @@ type Server struct {
 	cfg              *config.Configuration
 	identityService  ports.IdentityService
 	claimService     ports.ClaimsService
+	usersService     ports.UsersService
 	publisherGateway ports.Publisher
 	packageManager   *iden3comm.PackageManager
 	health           *health.Status
 }
 
 // NewServer is a Server constructor
-func NewServer(cfg *config.Configuration, identityService ports.IdentityService, claimsService ports.ClaimsService, publisherGateway ports.Publisher, packageManager *iden3comm.PackageManager, health *health.Status) *Server {
+func NewServer(cfg *config.Configuration, identityService ports.IdentityService, claimsService ports.ClaimsService, usersService ports.UsersService, publisherGateway ports.Publisher, packageManager *iden3comm.PackageManager, health *health.Status) *Server {
 	return &Server{
 		cfg:              cfg,
 		identityService:  identityService,
 		claimService:     claimsService,
+		usersService:     usersService,
 		publisherGateway: publisherGateway,
 		packageManager:   packageManager,
 		health:           health,
@@ -323,6 +326,71 @@ func (s *Server) GetClaimQrCode(ctx context.Context, request GetClaimQrCodeReque
 	return toGetClaimQrCode200JSONResponse(claim, s.cfg.ServerUrl), nil
 }
 
+func (s *Server) GetClaimMTP(ctx context.Context, request GetClaimMTPRequestObject) (GetClaimMTPResponseObject, error) {
+	if request.Id == "" {
+		return GetClaimMTP400JSONResponse{N400JSONResponse{"cannot proceed with an empty claim id"}}, nil
+	}
+
+	claimID, err := uuid.Parse(request.Id)
+	if err != nil {
+		return GetClaimMTP400JSONResponse{N400JSONResponse{"invalid claim id"}}, nil
+	}
+
+	claim, err := s.claimService.GetBySingleID(ctx, claimID)
+	if err != nil {
+		if errors.Is(err, services.ErrClaimNotFound) {
+			return GetClaimMTP404JSONResponse{N404JSONResponse{err.Error()}}, nil
+		}
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	state := new(domain.IdentityState)
+	if request.Params.StateHash == nil {
+		issuerDID, err := core.ParseDID(claim.Issuer)
+		if err != nil {
+			log.Error(ctx, "failed to parse DID", err)
+			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+		}
+		state, err = s.identityService.GetLatestStateByID(context.Background(), *issuerDID)
+		if err != nil {
+			log.Error(ctx, "failed to get latest state by ID", err)
+			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+		}
+	} else {
+		state, err = s.identityService.GetStateByHash(ctx, *request.Params.StateHash)
+		if err != nil {
+			log.Error(ctx, "failed to get state by hash", err)
+			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+		}
+	}
+
+	leaf, err := claim.CoreClaim.Get().HIndex()
+	if err != nil {
+		log.Error(ctx, "failed to get HIndex", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	root, err := merkletree.NewHashFromHex(*state.ClaimsTreeRoot)
+	if err != nil {
+		log.Error(ctx, "failed to get new hash from hex", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	iMT, err := s.claimService.GetMTByKey(ctx, *state.ClaimsTreeRoot)
+	if err != nil {
+		log.Error(ctx, "failed to get MT proof", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	proof, err := s.claimService.GetMTProof(ctx, leaf, root, iMT.MTID)
+	if err != nil {
+		log.Error(ctx, "failed to get MT proof", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	return toGetClaimMTP200JSONResponse(state, proof), nil
+}
+
 // GetIdentities is the controller to get identities
 func (s *Server) GetIdentities(ctx context.Context, request GetIdentitiesRequestObject) (GetIdentitiesResponseObject, error) {
 	var response GetIdentities200JSONResponse
@@ -419,6 +487,20 @@ func (s *Server) RetryPublishState(ctx context.Context, request RetryPublishStat
 	}, nil
 }
 
+// AddUser - add login and password to the database
+func (s *Server) AddUser(ctx context.Context, request AddUserRequestObject) (AddUserResponseObject, error) {
+	did, err := core.ParseDID(request.Body.Did)
+	if err != nil {
+		log.Error(context.Background(), "failed to parse did", err)
+		return AddUser500JSONResponse{N500JSONResponse{"invalid did"}}, nil
+	}
+	if err := s.usersService.AddUser(ctx, request.Body.Login, request.Body.Password, *did); err != nil {
+		log.Error(context.Background(), "failed to add user", err)
+		return AddUser500JSONResponse{N500JSONResponse{"failed to add user"}}, nil
+	}
+	return AddUser200JSONResponse{}, nil
+}
+
 // RegisterStatic add method to the mux that are not documented in the API.
 func RegisterStatic(mux *chi.Mux) {
 	mux.Get("/", documentation)
@@ -481,6 +563,46 @@ func toGetClaimQrCode200JSONResponse(claim *domain.Claim, hostURL string) *GetCl
 		Typ:  string(packers.MediaTypePlainMessage),
 		Type: string(protocol.CredentialOfferMessageType),
 	}
+}
+
+func toGetClaimMTP200JSONResponse(state *domain.IdentityState, proof *merkletree.Proof) *GetClaimMTP200JSONResponse {
+	response := GetClaimMTP200JSONResponse{
+		Issuer: struct {
+			ClaimTreeRoot      *string `json:"claimTreeRoot,omitempty"`
+			RevocationTreeRoot *string `json:"revocationTreeRoot,omitempty"`
+			RootOfRoots        *string `json:"rootOfRoots,omitempty"`
+			State              *string `json:"state,omitempty"`
+		}{
+			ClaimTreeRoot:      state.ClaimsTreeRoot,
+			RevocationTreeRoot: state.RevocationTreeRoot,
+			RootOfRoots:        state.RootOfRoots,
+			State:              state.State,
+		},
+	}
+
+	response.Mtp.Existence = proof.Existence
+
+	if proof.NodeAux != nil {
+		key := proof.NodeAux.Key
+		decodedKey := key.BigInt().String()
+		value := proof.NodeAux.Value
+		decodedValue := value.BigInt().String()
+		response.Mtp.NodeAux = &struct {
+			Key   *string `json:"key,omitempty"`
+			Value *string `json:"value,omitempty"`
+		}{
+			Key:   &decodedKey,
+			Value: &decodedValue,
+		}
+	}
+
+	siblings := make([]string, 0)
+	for _, s := range proof.AllSiblings() {
+		siblings = append(siblings, s.BigInt().String())
+	}
+	response.Mtp.Siblings = &siblings
+
+	return &response
 }
 
 func documentation(w http.ResponseWriter, _ *http.Request) {

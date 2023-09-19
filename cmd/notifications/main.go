@@ -101,6 +101,7 @@ func newCredentialsService(cfg *config.Configuration, storage *db.Storage, cache
 	mtRepository := repositories.NewIdentityMerkleTreeRepository()
 	identityStateRepository := repositories.NewIdentityState()
 	revocationRepository := repositories.NewRevocation()
+	merkleTreeRootsRepository := repositories.NewMerkleTreeNodesRepository()
 	keyStore, err := kms.Open(cfg.KeyStore.PluginIden3MountPath, vaultCli)
 	if err != nil {
 		return nil, fmt.Errorf("cannot initialize kms: err %s", err.Error())
@@ -114,7 +115,7 @@ func newCredentialsService(cfg *config.Configuration, storage *db.Storage, cache
 		schemaLoader = loader.CachedFactory(loader.HTTPFactory, cachex)
 	}
 
-	mtService := services.NewIdentityMerkleTrees(mtRepository)
+	mtService := services.NewIdentityMerkleTrees(mtRepository, merkleTreeRootsRepository)
 	identityService := services.NewIdentity(keyStore, identityRepository, mtRepository, identityStateRepository, mtService, claimsRepository, revocationRepository, nil, storage, rhsp, nil, nil, ps)
 	claimsService := services.NewClaim(
 		claimsRepository,

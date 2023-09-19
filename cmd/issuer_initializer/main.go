@@ -60,9 +60,10 @@ func main() {
 	claimsRepository := repositories.NewClaims()
 	mtRepository := repositories.NewIdentityMerkleTreeRepository()
 	identityStateRepository := repositories.NewIdentityState()
+	merkleTreeRootsRepository := repositories.NewMerkleTreeNodesRepository()
 
 	// services initialization
-	mtService := services.NewIdentityMerkleTrees(mtRepository)
+	mtService := services.NewIdentityMerkleTrees(mtRepository, merkleTreeRootsRepository)
 	identityService := services.NewIdentity(keyStore, identityRepository, mtRepository, identityStateRepository, mtService, claimsRepository, nil, nil, storage, nil, nil, nil, pubsub.NewMock())
 
 	identity, err := identityService.Create(ctx, cfg.APIUI.IdentityMethod, cfg.APIUI.IdentityBlockchain, cfg.APIUI.IdentityNetwork, cfg.ServerUrl)

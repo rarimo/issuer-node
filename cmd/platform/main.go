@@ -36,7 +36,7 @@ import (
 )
 
 func main() {
-	cfg, err := config.Load("")
+	cfg, err := config.Load("./config.toml")
 	if err != nil {
 		log.Error(context.Background(), "cannot load config", "err", err)
 		return
@@ -109,11 +109,13 @@ func main() {
 	identityRepository := repositories.NewIdentity()
 	claimsRepository := repositories.NewClaims()
 	mtRepository := repositories.NewIdentityMerkleTreeRepository()
+	merkleTreeRootsRepository := repositories.NewMerkleTreeNodesRepository()
 	identityStateRepository := repositories.NewIdentityState()
 	revocationRepository := repositories.NewRevocation()
+	usersRepository := repositories.NewUsers()
 
 	// services initialization
-	mtService := services.NewIdentityMerkleTrees(mtRepository)
+	mtService := services.NewIdentityMerkleTrees(mtRepository, merkleTreeRootsRepository)
 	identityService := services.NewIdentity(keyStore, identityRepository, mtRepository, identityStateRepository, mtService, claimsRepository, revocationRepository, nil, storage, rhsp, nil, nil, ps)
 	claimsService := services.NewClaim(
 		claimsRepository,
@@ -138,6 +140,7 @@ func main() {
 		log.Error(ctx, "error creating transaction service", "err", err)
 		return
 	}
+	usersService := services.NewUsers(usersRepository, storage)
 
 	publisherGateway, err := gateways.NewPublisherEthGateway(ethereumClient, common.HexToAddress(cfg.Ethereum.ContractAddress), keyStore, cfg.PublishingKeyPath)
 	if err != nil {
@@ -171,7 +174,7 @@ func main() {
 	)
 	api.HandlerFromMux(
 		api.NewStrictHandlerWithOptions(
-			api.NewServer(cfg, identityService, claimsService, publisher, packageManager, serverHealth),
+			api.NewServer(cfg, identityService, claimsService, usersService, publisher, packageManager, serverHealth),
 			middlewares(ctx, cfg.HTTPBasicAuth),
 			api.StrictHTTPServerOptions{
 				RequestErrorHandlerFunc:  errors.RequestErrorHandlerFunc,

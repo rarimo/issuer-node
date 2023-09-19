@@ -423,6 +423,7 @@ func checkEnvVars(ctx context.Context, cfg *Configuration) {
 	}
 
 	if cfg.Database.URL == "" {
+		cfg.Database.URL = "postgres://polygonid:polygonid@postgres:5432/platformid?sslmode=disable"
 		log.Info(ctx, "ISSUER_DATABASE_URL value is missing")
 	}
 

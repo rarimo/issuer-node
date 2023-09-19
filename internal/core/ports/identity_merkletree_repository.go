@@ -15,4 +15,5 @@ type IdentityMerkleTreeRepository interface {
 	UpdateByID(ctx context.Context, conn db.Querier, imt *domain.IdentityMerkleTree) error
 	GetByID(ctx context.Context, conn db.Querier, mtID uint64) (*domain.IdentityMerkleTree, error)
 	GetByIdentifierAndTypes(ctx context.Context, conn db.Querier, identifier *core.DID, mtTypes []uint16) ([]domain.IdentityMerkleTree, error)
+	//GetByKey(ctx context.Context, conn db.Querier, key string) (*domain.IdentityMerkleTree, error)
 }

@@ -78,6 +78,31 @@ WHERE identifier=$1 AND status = 'confirmed' ORDER BY state_id DESC LIMIT 1`, id
 	return &state, nil
 }
 
+func (isr *identityState) GetStateByHash(ctx context.Context, conn db.Querier, hash string) (*domain.IdentityState, error) {
+	row := conn.QueryRow(ctx, `SELECT state_id, identifier, state, root_of_roots, claims_tree_root, 
+       revocation_tree_root, block_timestamp, block_number, tx_id, previous_state, status, modified_at, created_at 
+FROM identity_states
+WHERE state=$1 AND status = 'confirmed' ORDER BY state_id DESC LIMIT 1`, hash)
+	state := domain.IdentityState{}
+	if err := row.Scan(&state.StateID,
+		&state.Identifier,
+		&state.State,
+		&state.RootOfRoots,
+		&state.ClaimsTreeRoot,
+		&state.RevocationTreeRoot,
+		&state.BlockTimestamp,
+		&state.BlockNumber,
+		&state.TxID,
+		&state.PreviousState,
+		&state.Status,
+		&state.ModifiedAt,
+		&state.CreatedAt); err != nil {
+		return nil, fmt.Errorf("error trying to get latest state:%w", err)
+	}
+
+	return &state, nil
+}
+
 // GetStatesByStatus returns states which are not transated
 func (isr *identityState) GetStatesByStatus(ctx context.Context, conn db.Querier, status domain.IdentityStatus) ([]domain.IdentityState, error) {
 	rows, err := conn.Query(ctx, `SELECT state_id, identifier, state, root_of_roots, claims_tree_root, revocation_tree_root, block_timestamp, block_number, 
