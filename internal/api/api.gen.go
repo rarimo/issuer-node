@@ -260,6 +260,12 @@ type GetClaimsParams struct {
 	QueryValue *string `form:"query_value,omitempty" json:"query_value,omitempty"`
 }
 
+// GetRevocationStatusParams defines parameters for GetRevocationStatus.
+type GetRevocationStatusParams struct {
+	// StateHash Identity state hash
+	StateHash *PathStateHash `form:"state_hash,omitempty" json:"state_hash,omitempty"`
+}
+
 // AgentTextRequestBody defines body for Agent for text/plain ContentType.
 type AgentTextRequestBody = AgentTextBody
 
@@ -312,7 +318,7 @@ type ServerInterface interface {
 	CreateClaim(w http.ResponseWriter, r *http.Request, identifier PathIdentifier)
 	// Get Revocation Status
 	// (GET /v1/{identifier}/claims/revocation/status/{nonce})
-	GetRevocationStatus(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, nonce PathNonce)
+	GetRevocationStatus(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, nonce PathNonce, params GetRevocationStatusParams)
 	// Revoke Claim
 	// (POST /v1/{identifier}/claims/revoke/{nonce})
 	RevokeClaim(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, nonce PathNonce)
@@ -658,8 +664,19 @@ func (siw *ServerInterfaceWrapper) GetRevocationStatus(w http.ResponseWriter, r 
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetRevocationStatusParams
+
+	// ------------- Optional query parameter "state_hash" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "state_hash", r.URL.Query(), &params.StateHash)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state_hash", Err: err})
+		return
+	}
+
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetRevocationStatus(w, r, identifier, nonce)
+		siw.Handler.GetRevocationStatus(w, r, identifier, nonce, params)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1422,6 +1439,7 @@ func (response CreateClaim500JSONResponse) VisitCreateClaimResponse(w http.Respo
 type GetRevocationStatusRequestObject struct {
 	Identifier PathIdentifier `json:"identifier"`
 	Nonce      PathNonce      `json:"nonce"`
+	Params     GetRevocationStatusParams
 }
 
 type GetRevocationStatusResponseObject interface {
@@ -2110,11 +2128,12 @@ func (sh *strictHandler) CreateClaim(w http.ResponseWriter, r *http.Request, ide
 }
 
 // GetRevocationStatus operation middleware
-func (sh *strictHandler) GetRevocationStatus(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, nonce PathNonce) {
+func (sh *strictHandler) GetRevocationStatus(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, nonce PathNonce, params GetRevocationStatusParams) {
 	var request GetRevocationStatusRequestObject
 
 	request.Identifier = identifier
 	request.Nonce = nonce
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetRevocationStatus(ctx, request.(GetRevocationStatusRequestObject))

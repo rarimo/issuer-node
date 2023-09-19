@@ -335,13 +335,22 @@ func (c *claim) GetAll(ctx context.Context, did core.DID, filter *ports.ClaimsFi
 	return claims, nil
 }
 
-func (c *claim) GetRevocationStatus(ctx context.Context, issuerDID core.DID, nonce uint64) (*verifiable.RevocationStatus, error) {
+func (c *claim) GetRevocationStatus(ctx context.Context, issuerDID core.DID, nonce uint64, stateHash string) (*verifiable.RevocationStatus, error) {
 	rID := new(big.Int).SetUint64(nonce)
 	revocationStatus := &verifiable.RevocationStatus{}
 
-	state, err := c.identityStateRepository.GetLatestStateByIdentifier(ctx, c.storage.Pgx, &issuerDID)
-	if err != nil {
-		return nil, err
+	state := new(domain.IdentityState)
+	var err error
+	if stateHash == "" {
+		state, err = c.identityStateRepository.GetLatestStateByIdentifier(ctx, c.storage.Pgx, &issuerDID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		state, err = c.identityStateRepository.GetStateByHash(ctx, c.storage.Pgx, stateHash)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	revocationStatus.Issuer.State = state.State

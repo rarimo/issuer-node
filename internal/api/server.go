@@ -185,7 +185,12 @@ func (s *Server) GetRevocationStatus(ctx context.Context, request GetRevocationS
 		}}, nil
 	}
 
-	rs, err := s.claimService.GetRevocationStatus(ctx, *issuerDID, uint64(request.Nonce))
+	stateHash := ""
+	if request.Params.StateHash != nil {
+		stateHash = *request.Params.StateHash
+	}
+
+	rs, err := s.claimService.GetRevocationStatus(ctx, *issuerDID, uint64(request.Nonce), stateHash)
 	if err != nil {
 		return GetRevocationStatus500JSONResponse{N500JSONResponse{
 			Message: err.Error(),
