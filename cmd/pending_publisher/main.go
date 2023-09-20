@@ -30,7 +30,7 @@ import (
 )
 
 func main() {
-	cfg, err := config.Load("")
+	cfg, err := config.Load("./config.toml")
 	if err != nil {
 		log.Error(context.Background(), "cannot load config", "err", err)
 		panic(err)
