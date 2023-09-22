@@ -376,6 +376,7 @@ paths:
         - Credential
       parameters:
         - $ref: '#/components/parameters/pathNonce'
+        - $ref: '#/components/parameters/pathStateHash'
       responses:
         '200':
           description: Proof
@@ -1558,6 +1559,14 @@ components:
         x-go-type-import:
           name: uuid
           path: github.com/google/uuid
+
+    pathStateHash:
+      name: state_hash
+      in: query
+      required: false
+      description: Identity state hash
+      schema:
+        type: string
 
     linkID:
       name: linkID

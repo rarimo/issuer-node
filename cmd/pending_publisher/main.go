@@ -141,13 +141,20 @@ func main() {
 		panic("Error dialing with ethclient: " + err.Error())
 	}
 
+	minGasPrice := big.NewInt(int64(cfg.Ethereum.MinGasPrice))
+	maxGasPrice := big.NewInt(int64(cfg.Ethereum.MaxGasPrice))
+	if cfg.GasPriceZero {
+		minGasPrice = big.NewInt(0)
+		maxGasPrice = big.NewInt(0)
+	}
+
 	cl := eth.NewClient(commonClient, &eth.ClientConfig{
 		DefaultGasLimit:        cfg.Ethereum.DefaultGasLimit,
 		ConfirmationTimeout:    cfg.Ethereum.ConfirmationTimeout,
 		ConfirmationBlockCount: cfg.Ethereum.ConfirmationBlockCount,
 		ReceiptTimeout:         cfg.Ethereum.ReceiptTimeout,
-		MinGasPrice:            big.NewInt(int64(cfg.Ethereum.MinGasPrice)),
-		MaxGasPrice:            big.NewInt(int64(cfg.Ethereum.MaxGasPrice)),
+		MinGasPrice:            minGasPrice,
+		MaxGasPrice:            maxGasPrice,
 		RPCResponseTimeout:     cfg.Ethereum.RPCResponseTimeout,
 		WaitReceiptCycleTime:   cfg.Ethereum.WaitReceiptCycleTime,
 		WaitBlockCycleTime:     cfg.Ethereum.WaitBlockCycleTime,

@@ -5,7 +5,7 @@ PublishingKeyPath = "pbkey"
 OnChainCheckStatusFrecuency = "30s"
 
 [Database]
-Url="postgres://polygonid:polygonid@localhost:5432/platformid?sslmode=disable"
+Url="postgres://polygonid:polygonid@localhost:5433/platformid?sslmode=disable"
 
 [Cache]
 RedisUrl="redis://@localhost:6380/1"

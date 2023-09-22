@@ -47,6 +47,7 @@ type Configuration struct {
 	SchemaCache                  *bool              `mapstructure:"SchemaCache"`
 	APIUI                        APIUI              `mapstructure:"APIUI"`
 	IFPS                         IPFS               `mapstructure:"IPFS"`
+	GasPriceZero                 bool               `mapstructure:"IsGasPriceZero"`
 }
 
 // Database has the database configuration
@@ -423,7 +424,7 @@ func checkEnvVars(ctx context.Context, cfg *Configuration) {
 	}
 
 	if cfg.Database.URL == "" {
-		cfg.Database.URL = "postgres://polygonid:polygonid@postgres:5432/platformid?sslmode=disable"
+		cfg.Database.URL = "postgres://polygonid:polygonid@postgres:5433/platformid?sslmode=disable"
 		log.Info(ctx, "ISSUER_DATABASE_URL value is missing")
 	}
 

@@ -366,7 +366,12 @@ func (s *Server) RevokeCredential(ctx context.Context, request RevokeCredentialR
 
 // GetRevocationStatus - returns weather a credential is revoked or not, this endpoint must be public available
 func (s *Server) GetRevocationStatus(ctx context.Context, request GetRevocationStatusRequestObject) (GetRevocationStatusResponseObject, error) {
-	rs, err := s.claimService.GetRevocationStatus(ctx, s.cfg.APIUI.IssuerDID, uint64(request.Nonce))
+	stateHash := ""
+	if request.Params.StateHash != nil {
+		stateHash = *request.Params.StateHash
+	}
+
+	rs, err := s.claimService.GetRevocationStatus(ctx, s.cfg.APIUI.IssuerDID, uint64(request.Nonce), stateHash)
 	if err != nil {
 		return GetRevocationStatus500JSONResponse{N500JSONResponse{
 			Message: err.Error(),
