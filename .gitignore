@@ -31,3 +31,6 @@ infrastructure/local/.vault/file
 # vendor/
 
 .DS_STORE
+
+platform
+platform_ui
