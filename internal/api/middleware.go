@@ -45,3 +45,13 @@ func BasicAuthMiddleware(ctx context.Context, user, pass string) StrictMiddlewar
 		}
 	}
 }
+
+// ReqMiddleware returns a middleware that adds http request to each context request
+func ReqMiddleware(_ context.Context) StrictMiddlewareFunc {
+	return func(f StrictHandlerFunc, operationID string) StrictHandlerFunc {
+		return func(ctxReq context.Context, w http.ResponseWriter, r *http.Request, args interface{}) (interface{}, error) {
+			ctx := context.WithValue(ctxReq, "req-req", *r)
+			return f(ctx, w, r, args)
+		}
+	}
+}

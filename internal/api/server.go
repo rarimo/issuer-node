@@ -396,6 +396,16 @@ func (s *Server) GetClaimMTP(ctx context.Context, request GetClaimMTPRequestObje
 	return toGetClaimMTP200JSONResponse(state, proof), nil
 }
 
+func (s *Server) SubscribeToClaimWebsocket(ctx context.Context, request SubscribeToClaimWebsocketRequestObject) (SubscribeToClaimWebsocketResponseObject, error) {
+	resp := WebsocketResponse{
+		ctx:             ctx,
+		request:         request,
+		claimService:    s.claimService,
+		identityService: s.identityService,
+	}
+	return resp, nil
+}
+
 // GetIdentities is the controller to get identities
 func (s *Server) GetIdentities(ctx context.Context, request GetIdentitiesRequestObject) (GetIdentitiesResponseObject, error) {
 	var response GetIdentities200JSONResponse

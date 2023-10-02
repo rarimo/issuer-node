@@ -396,6 +396,23 @@ paths:
           $ref: '#/components/responses/404'
         '500':
           $ref: '#/components/responses/500'
+  /v1/{identifier}/claims/{id}/status/subscribe:
+    get:
+      summary: Websocket for getting claim status
+      operationId: SubscribeToClaimWebsocket
+      description: Subscribes to websocket for getting claim status
+      tags:
+        - Claim
+      security:
+        - basicAuth: [ ]
+      parameters:
+        - $ref: '#/components/parameters/pathIdentifier'
+        - $ref: '#/components/parameters/pathClaim'
+      responses:
+        '200':
+          description: ok
+        '500':
+          $ref: '#/components/responses/500'
 
 #agent
   /v1/agent:
