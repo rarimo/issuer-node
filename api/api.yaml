@@ -377,7 +377,7 @@ paths:
     get:
       summary: Get Claim MTP
       operationId: GetClaimMTP
-      description: Returns claim MT proof for a given state hash.
+      description: Returns claim's MT inclusion proof for a given state hash.
       tags:
         - Claim
       parameters:

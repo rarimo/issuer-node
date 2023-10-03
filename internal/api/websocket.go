@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const Ticker = 12
+
 type WebsocketResponse struct {
 	ctx             context.Context
 	request         SubscribeToClaimWebsocketRequestObject
@@ -22,7 +24,7 @@ type WebsocketResponse struct {
 func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.ResponseWriter) error {
 	var upgrader = websocket.Upgrader{}
 
-	value := wr.ctx.Value("req-req")
+	value := wr.ctx.Value(ReqReq)
 	if value == nil {
 		return nil
 	}
@@ -46,7 +48,7 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 		return err
 	}
 
-	ticker := time.NewTicker(12 * time.Second)
+	ticker := time.NewTicker(Ticker * time.Second)
 
 	for range ticker.C {
 		claim, err := wr.claimService.GetByID(context.Background(), issuerDID, claimUUID)

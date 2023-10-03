@@ -12,6 +12,9 @@ import (
 	"github.com/polygonid/sh-id-platform/internal/log"
 )
 
+// ReqReq is used to pass http.Request to the websocket subscription func
+const ReqReq = "req-req"
+
 // LogMiddleware returns a middleware that adds general log configuration to each context request
 func LogMiddleware(ctx context.Context) StrictMiddlewareFunc {
 	return func(f StrictHandlerFunc, operationID string) StrictHandlerFunc {
@@ -50,7 +53,7 @@ func BasicAuthMiddleware(ctx context.Context, user, pass string) StrictMiddlewar
 func ReqMiddleware(_ context.Context) StrictMiddlewareFunc {
 	return func(f StrictHandlerFunc, operationID string) StrictHandlerFunc {
 		return func(ctxReq context.Context, w http.ResponseWriter, r *http.Request, args interface{}) (interface{}, error) {
-			ctx := context.WithValue(ctxReq, "req-req", *r)
+			ctx := context.WithValue(ctxReq, ReqReq, *r)
 			return f(ctx, w, r, args)
 		}
 	}

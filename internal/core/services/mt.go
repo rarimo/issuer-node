@@ -113,12 +113,12 @@ func (mts *mtService) GetIdentityMerkleTrees(ctx context.Context, conn db.Querie
 	return imTrees, nil
 }
 
-func (mts *mtService) GetMTByKey(ctx context.Context, conn db.Querier, key string) (*domain.MerkleTreeNode, error) {
-	iMT, err := mts.mtnRepo.GetByKey(ctx, conn, key)
+func (mts *mtService) GetMTIDByKey(ctx context.Context, conn db.Querier, key string) (int64, error) {
+	mtID, err := mts.mtnRepo.GetMTIDByKey(ctx, conn, key)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get identity merkle tree by ID")
+		return 0, errors.Wrap(err, "failed to get identity merkle tree by ID")
 	}
-	return iMT, nil
+	return mtID, nil
 }
 
 func findByType(mts []domain.IdentityMerkleTree, tp uint16) *domain.IdentityMerkleTree {

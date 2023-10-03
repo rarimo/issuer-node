@@ -194,5 +194,5 @@ type ClaimsService interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByStateIDWithMTPProof(ctx context.Context, did *core.DID, state string) ([]*domain.Claim, error)
 	GetMTProof(ctx context.Context, leafKey *big.Int, root *merkletree.Hash, merkleTreeID int64) (*merkletree.Proof, error)
-	GetMTByKey(ctx context.Context, key string) (*domain.MerkleTreeNode, error)
+	GetMTIDByKey(ctx context.Context, key string) (int64, error)
 }

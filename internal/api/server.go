@@ -381,13 +381,13 @@ func (s *Server) GetClaimMTP(ctx context.Context, request GetClaimMTPRequestObje
 		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
 	}
 
-	iMT, err := s.claimService.GetMTByKey(ctx, *state.ClaimsTreeRoot)
+	mtID, err := s.claimService.GetMTIDByKey(ctx, *state.ClaimsTreeRoot)
 	if err != nil {
 		log.Error(ctx, "failed to get MT proof", err)
 		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
 	}
 
-	proof, err := s.claimService.GetMTProof(ctx, leaf, root, iMT.MTID)
+	proof, err := s.claimService.GetMTProof(ctx, leaf, root, mtID)
 	if err != nil {
 		log.Error(ctx, "failed to get MT proof", err)
 		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil

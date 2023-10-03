@@ -517,10 +517,10 @@ func (c *claim) GetMTProof(
 	return mtp, nil
 }
 
-func (c *claim) GetMTByKey(ctx context.Context, key string) (*domain.MerkleTreeNode, error) {
-	iMT, err := c.mtService.GetMTByKey(ctx, c.storage.Pgx, key)
+func (c *claim) GetMTIDByKey(ctx context.Context, key string) (int64, error) {
+	iMT, err := c.mtService.GetMTIDByKey(ctx, c.storage.Pgx, key)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get identity merkle tree by ID")
+		return 0, errors.Wrap(err, "failed to get identity merkle tree by ID")
 	}
 	return iMT, nil
 }
