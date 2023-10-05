@@ -24,12 +24,12 @@ type BJJSignatureProof2021 struct {
 
 // IssuerData is the data that is used to create a proof
 type IssuerData struct {
-	ID                   string           `json:"id,omitempty"`
-	IssuerProofUpdateURL string           `json:"issuerProofUpdateUrl,omitempty"`
-	State                verifiable.State `json:"state,omitempty"`
-	AuthCoreClaim        string           `json:"authCoreClaim,omitempty"`
-	MTP                  *mt.Proof        `json:"mtp,omitempty"`
-	CredentialStatus     interface{}      `json:"credentialStatus,omitempty"`
+	ID               string           `json:"id,omitempty"`
+	UpdateURL        string           `json:"updateUrl,omitempty"`
+	State            verifiable.State `json:"state,omitempty"`
+	AuthCoreClaim    string           `json:"authCoreClaim,omitempty"`
+	MTP              *mt.Proof        `json:"mtp,omitempty"`
+	CredentialStatus interface{}      `json:"credentialStatus,omitempty"`
 }
 
 func (p *BJJSignatureProof2021) UnmarshalJSON(src []byte) error {
