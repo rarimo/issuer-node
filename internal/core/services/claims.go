@@ -432,6 +432,11 @@ func (c *claim) UpdateClaimsMTPAndState(ctx context.Context, currentState *domai
 		return err
 	}
 
+	authClaim, err := c.GetAuthClaim(ctx, did)
+	if err != nil {
+		return err
+	}
+
 	for i := range claims {
 		var index *big.Int
 		var coreClaimHex string
@@ -449,10 +454,12 @@ func (c *claim) UpdateClaimsMTPAndState(ctx context.Context, currentState *domai
 		if err != nil {
 			return err
 		}
-		mtpProof := verifiable.Iden3SparseMerkleTreeProof{
+		mtpProof := common.Iden3SparseMerkleTreeProof{
+			ID:   c.buildMTProofURL(claims[i].ID),
 			Type: verifiable.Iden3SparseMerkleTreeProofType,
-			IssuerData: verifiable.IssuerData{
-				ID: did.String(),
+			IssuerData: common.IssuerData{
+				ID:        did.String(),
+				UpdateURL: c.buildMTProofURL(authClaim.ID),
 				State: verifiable.State{
 					RootOfRoots:        currentState.RootOfRoots,
 					ClaimsTreeRoot:     currentState.ClaimsTreeRoot,
@@ -694,4 +701,8 @@ func buildRevocationURL(host, issuerDID string, nonce uint64, singleIssuer bool)
 
 	return fmt.Sprintf("%s/v1/%s/claims/revocation/status/%d",
 		host, url.QueryEscape(issuerDID), nonce)
+}
+
+func (c *claim) buildMTProofURL(credID uuid.UUID) string {
+	return fmt.Sprintf(c.cfg.Host+"/v1/claims/%s/mtp", credID.String())
 }

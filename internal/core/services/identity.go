@@ -121,7 +121,7 @@ func (i *identity) Create(ctx context.Context, DIDMethod string, blockchain, net
 	return identityDB, nil
 }
 
-func (i *identity) SignClaimEntry(ctx context.Context, authClaim *domain.Claim, claimEntry *core.Claim) (*verifiable.BJJSignatureProof2021, error) {
+func (i *identity) SignClaimEntry(ctx context.Context, authClaim *domain.Claim, claimEntry *core.Claim) (*common.BJJSignatureProof2021, error) {
 	keyID, err := i.getKeyIDFromAuthClaim(ctx, authClaim)
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (i *identity) SignClaimEntry(ctx context.Context, authClaim *domain.Claim, 
 
 	circuitSigner := signer.New(bbjSuite)
 
-	var issuerMTP verifiable.Iden3SparseMerkleTreeProof
+	var issuerMTP common.Iden3SparseMerkleTreeProof
 	err = authClaim.MTPProof.AssignTo(&issuerMTP)
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (i *identity) SignClaimEntry(ctx context.Context, authClaim *domain.Claim, 
 	}
 
 	// followed https://w3c-ccg.github.io/ld-proofs/
-	var proof verifiable.BJJSignatureProof2021
+	var proof common.BJJSignatureProof2021
 	proof.Type = babyjubjub.SignatureType
 	proof.Signature = hex.EncodeToString(signtureBytes)
 	issuerMTP.IssuerData.AuthCoreClaim, err = authClaim.CoreClaim.Get().Hex()
@@ -723,27 +723,27 @@ func (i *identity) createIdentity(ctx context.Context, tx db.Querier, DIDMethod 
 	return did, currentState.BigInt(), nil
 }
 
-func (i *identity) getAuthClaimMtpProof(ctx context.Context, claimsTree *merkletree.MerkleTree, currentState *merkletree.Hash, authClaim *core.Claim, did *core.DID) (verifiable.Iden3SparseMerkleTreeProof, error) {
+func (i *identity) getAuthClaimMtpProof(ctx context.Context, claimsTree *merkletree.MerkleTree, currentState *merkletree.Hash, authClaim *core.Claim, did *core.DID) (common.Iden3SparseMerkleTreeProof, error) {
 	index, err := authClaim.HIndex()
 	if err != nil {
-		return verifiable.Iden3SparseMerkleTreeProof{}, err
+		return common.Iden3SparseMerkleTreeProof{}, err
 	}
 
 	proof, _, err := claimsTree.GenerateProof(ctx, index, nil)
 	if err != nil {
-		return verifiable.Iden3SparseMerkleTreeProof{}, err
+		return common.Iden3SparseMerkleTreeProof{}, err
 	}
 
 	authClaimHex, err := authClaim.Hex()
 	if err != nil {
-		return verifiable.Iden3SparseMerkleTreeProof{}, fmt.Errorf("auth claim core hex error: %w", err)
+		return common.Iden3SparseMerkleTreeProof{}, fmt.Errorf("auth claim core hex error: %w", err)
 	}
 
 	stateHex := currentState.Hex()
 	cltHex := claimsTree.Root().Hex()
-	mtpProof := verifiable.Iden3SparseMerkleTreeProof{
+	mtpProof := common.Iden3SparseMerkleTreeProof{
 		Type: verifiable.Iden3SparseMerkleTreeProofType,
-		IssuerData: verifiable.IssuerData{
+		IssuerData: common.IssuerData{
 			ID:            did.String(),
 			AuthCoreClaim: authClaimHex,
 			State: verifiable.State{

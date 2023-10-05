@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 	core "github.com/iden3/go-iden3-core"
-	"github.com/iden3/go-schema-processor/verifiable"
 	"github.com/iden3/iden3comm/protocol"
 
+	"github.com/polygonid/sh-id-platform/internal/common"
 	"github.com/polygonid/sh-id-platform/internal/core/domain"
 	"github.com/polygonid/sh-id-platform/internal/kms"
 )
@@ -16,7 +16,7 @@ import (
 type IdentityService interface {
 	GetByDID(ctx context.Context, identifier core.DID) (*domain.Identity, error)
 	Create(ctx context.Context, DIDMethod string, Blockchain, NetworkID, hostURL string) (*domain.Identity, error)
-	SignClaimEntry(ctx context.Context, authClaim *domain.Claim, claimEntry *core.Claim) (*verifiable.BJJSignatureProof2021, error)
+	SignClaimEntry(ctx context.Context, authClaim *domain.Claim, claimEntry *core.Claim) (*common.BJJSignatureProof2021, error)
 	Get(ctx context.Context) (identities []string, err error)
 	UpdateState(ctx context.Context, did core.DID) (*domain.IdentityState, error)
 	Exists(ctx context.Context, identifier core.DID) (bool, error)
