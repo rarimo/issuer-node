@@ -300,7 +300,7 @@ func (p *Proof) checkRevocationStatus(ctx context.Context, claim *domain.Claim) 
 	claimRs, err = p.revocationSrv.Status(ctx, cs, issuerDID)
 	if err != nil && errors.Is(err, protocol.ErrStateNotFound) {
 
-		bjp := new(verifiable.BJJSignatureProof2021)
+		bjp := new(common.BJJSignatureProof2021)
 		if err := json.Unmarshal(claim.SignatureProof.Bytes, bjp); err != nil {
 			return nil, fmt.Errorf("failed parse signature proof for get genesys state: %s", err)
 		}
@@ -476,7 +476,7 @@ func (p *Proof) prepareNonMerklizedQuery(ctx context.Context, jsonSchemaURL stri
 	return circuitQuery, nil
 }
 
-func (p *Proof) callNonRevProof(ctx context.Context, issuerData verifiable.IssuerData, issuerDID *core.DID) (circuits.MTProof, error) {
+func (p *Proof) callNonRevProof(ctx context.Context, issuerData common.IssuerData, issuerDID *core.DID) (circuits.MTProof, error) {
 	nonRevProof, err := p.revocationSrv.Status(ctx, issuerData.CredentialStatus, issuerDID)
 
 	if err != nil && errors.Is(err, protocol.ErrStateNotFound) {

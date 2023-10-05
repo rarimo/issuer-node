@@ -12,6 +12,7 @@ import (
 	"github.com/iden3/go-schema-processor/verifiable"
 	"github.com/jackc/pgtype"
 
+	"github.com/polygonid/sh-id-platform/internal/common"
 	"github.com/polygonid/sh-id-platform/internal/core/domain"
 	"github.com/polygonid/sh-id-platform/internal/loader"
 )
@@ -48,7 +49,7 @@ func FromClaimModelToW3CCredential(claim domain.Claim) (*verifiable.W3CCredentia
 
 	proofs := make(verifiable.CredentialProofs, 0)
 
-	var signatureProof *verifiable.BJJSignatureProof2021
+	var signatureProof *common.BJJSignatureProof2021
 	if claim.SignatureProof.Status != pgtype.Null {
 		err = claim.SignatureProof.AssignTo(&signatureProof)
 		if err != nil {
@@ -57,7 +58,7 @@ func FromClaimModelToW3CCredential(claim domain.Claim) (*verifiable.W3CCredentia
 		proofs = append(proofs, signatureProof)
 	}
 
-	var mtpProof *verifiable.Iden3SparseMerkleTreeProof
+	var mtpProof *common.Iden3SparseMerkleTreeProof
 
 	if claim.MTPProof.Status != pgtype.Null {
 		err = claim.MTPProof.AssignTo(&mtpProof)
