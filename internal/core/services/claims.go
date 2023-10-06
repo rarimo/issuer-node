@@ -704,5 +704,5 @@ func buildRevocationURL(host, issuerDID string, nonce uint64, singleIssuer bool)
 }
 
 func (c *claim) buildMTProofURL(credID uuid.UUID) string {
-	return fmt.Sprintf(c.cfg.Host+"/v1/claims/%s/mtp", credID.String())
+	return fmt.Sprintf("%s/v1/claims/%s/mtp", c.cfg.Host, credID.String())
 }

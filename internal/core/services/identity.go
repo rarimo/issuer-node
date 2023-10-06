@@ -674,7 +674,7 @@ func (i *identity) createIdentity(ctx context.Context, tx db.Querier, DIDMethod 
 		return nil, nil, fmt.Errorf("can't create authClaimModel: %w", err)
 	}
 
-	mtpProof, err := i.getAuthClaimMtpProof(ctx, claimsTree, currentState, authClaim, did)
+	mtpProof, err := i.getAuthClaimMtpProof(ctx, claimsTree, currentState, authClaim, did, hostURL, claimID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't add get current state from merkle tree: %w", err)
 	}
@@ -723,7 +723,7 @@ func (i *identity) createIdentity(ctx context.Context, tx db.Querier, DIDMethod 
 	return did, currentState.BigInt(), nil
 }
 
-func (i *identity) getAuthClaimMtpProof(ctx context.Context, claimsTree *merkletree.MerkleTree, currentState *merkletree.Hash, authClaim *core.Claim, did *core.DID) (common.Iden3SparseMerkleTreeProof, error) {
+func (i *identity) getAuthClaimMtpProof(ctx context.Context, claimsTree *merkletree.MerkleTree, currentState *merkletree.Hash, authClaim *core.Claim, did *core.DID, hostURL string, claimID uuid.UUID) (common.Iden3SparseMerkleTreeProof, error) {
 	index, err := authClaim.HIndex()
 	if err != nil {
 		return common.Iden3SparseMerkleTreeProof{}, err
@@ -745,6 +745,7 @@ func (i *identity) getAuthClaimMtpProof(ctx context.Context, claimsTree *merklet
 		Type: verifiable.Iden3SparseMerkleTreeProofType,
 		IssuerData: common.IssuerData{
 			ID:            did.String(),
+			UpdateURL:     buildMTProofURL(hostURL, claimID),
 			AuthCoreClaim: authClaimHex,
 			State: verifiable.State{
 				ClaimsTreeRoot: &cltHex,
@@ -845,4 +846,8 @@ func newDIDDocument(serverURL string, issuerDID core.DID) verifiable.DIDDocument
 func sanitizeIssuerDoc(issDoc []byte) []byte {
 	str := strings.Replace(string(issDoc), "\\u0000", "", -1)
 	return []byte(str)
+}
+
+func buildMTProofURL(hostURL string, credID uuid.UUID) string {
+	return fmt.Sprintf("%s/v1/claims/%s/mtp", hostURL, credID.String())
 }
