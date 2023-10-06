@@ -7,7 +7,7 @@ import (
 	core "github.com/iden3/go-iden3-core"
 	"github.com/polygonid/sh-id-platform/internal/core/domain"
 	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"log"
+	"github.com/polygonid/sh-id-platform/internal/log"
 	"net/http"
 	"time"
 )
@@ -33,18 +33,20 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 
 	c, err := upgrader.Upgrade(w, &request, nil)
 	if err != nil {
-		log.Print("upgrade:", err)
+		log.Error(wr.ctx, "failed to upgrade connection", "err", err)
 		return err
 	}
 	defer c.Close()
 
 	issuerDID, err := core.ParseDID(wr.request.Identifier)
 	if err != nil {
+		log.Error(wr.ctx, "failed to parse did", "err", err)
 		return err
 	}
 
 	claimUUID, err := uuid.Parse(wr.request.Id)
 	if err != nil {
+		log.Error(wr.ctx, "failed to parse uuid", "err", err)
 		return err
 	}
 
@@ -53,9 +55,11 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 	for range ticker.C {
 		claim, err := wr.claimService.GetByID(context.Background(), issuerDID, claimUUID)
 		if err != nil {
+			log.Error(wr.ctx, "failed to get claim by id", "err", err)
 			return err
 		}
 		if claim == nil || claim.IdentityState == nil {
+			log.Error(wr.ctx, "claim not found", claimUUID.String())
 			return err
 		}
 
@@ -64,9 +68,9 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 			return err
 		}
 
-		if state.Status == domain.StatusConfirmed {
+		if state.Status == domain.StatusConfirmed || state.Status == domain.StatusFailed {
 			if err = c.WriteMessage(websocket.TextMessage, []byte(state.Status)); err != nil {
-				log.Println("write:", err)
+				log.Error(wr.ctx, "failed to write ws message", "err", err)
 				break
 			}
 		}
