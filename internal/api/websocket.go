@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const Ticker = 12
+var TickerDuration = 12 * time.Second
 
 type WebsocketResponse struct {
 	ctx             context.Context
@@ -50,7 +50,7 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 		return err
 	}
 
-	ticker := time.NewTicker(Ticker * time.Second)
+	ticker := time.NewTicker(TickerDuration)
 
 	for range ticker.C {
 		claim, err := wr.claimService.GetByID(context.Background(), issuerDID, claimUUID)
