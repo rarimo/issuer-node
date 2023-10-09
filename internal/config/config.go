@@ -48,6 +48,7 @@ type Configuration struct {
 	APIUI                        APIUI              `mapstructure:"APIUI"`
 	IFPS                         IPFS               `mapstructure:"IPFS"`
 	GasPriceZero                 bool               `mapstructure:"IsGasPriceZero"`
+	StatesTransitionFrequency    time.Duration      `mapstructure:"StatesTransitionFrequency"`
 }
 
 // Database has the database configuration
