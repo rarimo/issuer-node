@@ -553,12 +553,10 @@ func checkEnvVars(ctx context.Context, cfg *Configuration) {
 
 	if cfg.APIUI.IdentityBlockchain == "" {
 		log.Info(ctx, "ISSUER_API_IDENTITY_BLOCKCHAIN value is missing and the server set up it as polygon")
-		cfg.APIUI.IdentityBlockchain = "polygon"
 	}
 
 	if cfg.APIUI.IdentityNetwork == "" {
 		log.Info(ctx, "ISSUER_API_IDENTITY_NETWORK value is missing and the server set up it as mumbai")
-		cfg.APIUI.IdentityNetwork = "mumbai"
 	}
 }
 
