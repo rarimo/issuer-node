@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/polygonid/sh-id-platform/internal/log"
 
 	core "github.com/iden3/go-iden3-core"
 	jsonSuite "github.com/iden3/go-schema-processor/json"
@@ -116,6 +117,7 @@ func Process(ctx context.Context, ld loader.Loader, credentialType string, crede
 
 	claim, err := pr.ParseClaim(ctx, credential, credentialType, schema, options)
 	if err != nil {
+		log.Error(ctx, "failed to parse claim", "err", err)
 		return nil, ErrParseClaim
 	}
 	return claim, nil

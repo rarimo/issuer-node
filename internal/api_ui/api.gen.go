@@ -308,6 +308,12 @@ type Id = uuid.UUID
 // LinkID defines model for linkID.
 type LinkID = uuid.UUID
 
+// PathClaimType defines model for pathClaimType.
+type PathClaimType = string
+
+// PathIdentifier defines model for pathIdentifier.
+type PathIdentifier = string
+
 // PathNonce defines model for pathNonce.
 type PathNonce = int64
 
@@ -537,6 +543,9 @@ type ServerInterface interface {
 	// Get Credential QR code
 	// (GET /v1/credentials/{id}/qrcode)
 	GetCredentialQrCode(w http.ResponseWriter, r *http.Request, id Id)
+	// Claim Offer
+	// (GET /v1/credentials/{user-id}/{claim-type})
+	ClaimOffer(w http.ResponseWriter, r *http.Request, userId PathIdentifier, claimType PathClaimType)
 	// Get Schemas
 	// (GET /v1/schemas)
 	GetSchemas(w http.ResponseWriter, r *http.Request, params GetSchemasParams)
@@ -1349,6 +1358,43 @@ func (siw *ServerInterfaceWrapper) GetCredentialQrCode(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// ClaimOffer operation middleware
+func (siw *ServerInterfaceWrapper) ClaimOffer(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "user-id" -------------
+	var userId PathIdentifier
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "user-id", runtime.ParamLocationPath, chi.URLParam(r, "user-id"), &userId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user-id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "claim-type" -------------
+	var claimType PathClaimType
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "claim-type", runtime.ParamLocationPath, chi.URLParam(r, "claim-type"), &claimType)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "claim-type", Err: err})
+		return
+	}
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{""})
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimOffer(w, r, userId, claimType)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // GetSchemas operation middleware
 func (siw *ServerInterfaceWrapper) GetSchemas(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1688,6 +1734,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/credentials/{id}/qrcode", wrapper.GetCredentialQrCode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/credentials/{user-id}/{claim-type}", wrapper.ClaimOffer)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/schemas", wrapper.GetSchemas)
@@ -2690,6 +2739,51 @@ func (response GetCredentialQrCode500JSONResponse) VisitGetCredentialQrCodeRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ClaimOfferRequestObject struct {
+	UserId    PathIdentifier `json:"user-id"`
+	ClaimType PathClaimType  `json:"claim-type"`
+}
+
+type ClaimOfferResponseObject interface {
+	VisitClaimOfferResponse(w http.ResponseWriter) error
+}
+
+type ClaimOffer200JSONResponse QrCodeResponse
+
+func (response ClaimOffer200JSONResponse) VisitClaimOfferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimOffer400JSONResponse struct{ N400JSONResponse }
+
+func (response ClaimOffer400JSONResponse) VisitClaimOfferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimOffer404JSONResponse struct{ N404JSONResponse }
+
+func (response ClaimOffer404JSONResponse) VisitClaimOfferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimOffer500JSONResponse struct{ N500JSONResponse }
+
+func (response ClaimOffer500JSONResponse) VisitClaimOfferResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetSchemasRequestObject struct {
 	Params GetSchemasParams
 }
@@ -3008,6 +3102,9 @@ type StrictServerInterface interface {
 	// Get Credential QR code
 	// (GET /v1/credentials/{id}/qrcode)
 	GetCredentialQrCode(ctx context.Context, request GetCredentialQrCodeRequestObject) (GetCredentialQrCodeResponseObject, error)
+	// Claim Offer
+	// (GET /v1/credentials/{user-id}/{claim-type})
+	ClaimOffer(ctx context.Context, request ClaimOfferRequestObject) (ClaimOfferResponseObject, error)
 	// Get Schemas
 	// (GET /v1/schemas)
 	GetSchemas(ctx context.Context, request GetSchemasRequestObject) (GetSchemasResponseObject, error)
@@ -3812,6 +3909,33 @@ func (sh *strictHandler) GetCredentialQrCode(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCredentialQrCodeResponseObject); ok {
 		if err := validResponse.VisitGetCredentialQrCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("Unexpected response type: %T", response))
+	}
+}
+
+// ClaimOffer operation middleware
+func (sh *strictHandler) ClaimOffer(w http.ResponseWriter, r *http.Request, userId PathIdentifier, claimType PathClaimType) {
+	var request ClaimOfferRequestObject
+
+	request.UserId = userId
+	request.ClaimType = claimType
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimOffer(ctx, request.(ClaimOfferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimOffer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimOfferResponseObject); ok {
+		if err := validResponse.VisitClaimOfferResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

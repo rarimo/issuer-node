@@ -275,7 +275,7 @@ func (s *Server) GetCredential(ctx context.Context, request GetCredentialRequest
 
 // GetCredentials returns a collection of credentials that matches the request.
 func (s *Server) GetCredentials(ctx context.Context, request GetCredentialsRequestObject) (GetCredentialsResponseObject, error) {
-	filter, err := getCredentialsFilter(ctx, request.Params.Did, request.Params.Status, request.Params.Query)
+	filter, err := getCredentialsFilter(ctx, request.Params.Did, request.Params.Status, nil, request.Params.Query)
 	if err != nil {
 		return GetCredentials400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
 	}
@@ -294,6 +294,24 @@ func (s *Server) GetCredentials(ctx context.Context, request GetCredentialsReque
 		response[i] = credentialResponse(w3c, credential)
 	}
 	return GetCredentials200JSONResponse(response), nil
+}
+
+func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject) (ClaimOfferResponseObject, error) {
+	filter, err := getCredentialsFilter(ctx, &request.UserId, nil, &request.ClaimType, nil)
+	if err != nil {
+		return ClaimOffer400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
+	}
+
+	claims, err := s.claimService.GetAll(ctx, s.cfg.APIUI.IssuerDID, filter)
+	if err != nil {
+		log.Error(ctx, "loading credentials", "err", err, "req", request)
+		return ClaimOffer500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
+	}
+	if len(claims) == 0 {
+		return ClaimOffer404JSONResponse{N404JSONResponse{"claim not found"}}, nil
+	}
+
+	return ClaimOffer200JSONResponse(getCredentialQrCodeResponse(claims[0], s.cfg.APIUI.ServerURL)), nil
 }
 
 // DeleteCredential deletes a credential
@@ -688,7 +706,7 @@ func (s *Server) Agent(ctx context.Context, request AgentRequestObject) (AgentRe
 	}, nil
 }
 
-func getCredentialsFilter(ctx context.Context, userDID *string, status *GetCredentialsParamsStatus, query *string) (*ports.ClaimsFilter, error) {
+func getCredentialsFilter(ctx context.Context, userDID *string, status *GetCredentialsParamsStatus, schemaType, query *string) (*ports.ClaimsFilter, error) {
 	filter := &ports.ClaimsFilter{}
 	if userDID != nil {
 		did, err := core.ParseDID(*userDID)
@@ -709,6 +727,9 @@ func getCredentialsFilter(ctx context.Context, userDID *string, status *GetCrede
 		default:
 			return nil, errors.New("wrong type value. Allowed values: [all, revoked, expired]")
 		}
+	}
+	if schemaType != nil {
+		filter.SchemaType = *schemaType
 	}
 	if query != nil {
 		filter.FTSQuery = *query
