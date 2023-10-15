@@ -217,4 +217,4 @@ run-all: clean-vault up sleep-10 clean-vault add-private-key add-vault-token gen
 
 # usage: make private_key=xxx run-all-arm
 .PHONY: run-all-arm
-run-all: clean-vault up sleep-10 clean-vault add-private-key add-vault-token generate-issuer-did run-arm run-ui-arm
+run-all-arm: clean-vault up sleep-10 clean-vault add-private-key add-vault-token generate-issuer-did run-arm run-ui-arm
