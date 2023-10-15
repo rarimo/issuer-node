@@ -244,6 +244,7 @@ func identifierExists(ctx context.Context, did *core.DID, service ports.Identity
 
 func middlewares(ctx context.Context, auth config.APIUIAuth) []api_ui.StrictMiddlewareFunc {
 	return []api_ui.StrictMiddlewareFunc{
+		api_ui.ReqMiddleware(ctx),
 		api_ui.LogMiddleware(ctx),
 		api_ui.BasicAuthMiddleware(ctx, auth.User, auth.Password),
 	}

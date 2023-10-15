@@ -368,6 +368,24 @@ paths:
         '500':
           $ref: '#/components/responses/500'
 
+  /v1/credentials/{user-id}/{claim-type}/subscribe:
+    get:
+      summary: Websocket For Getting Claim Status
+      operationId: SubscribeToClaimWebsocket
+      description: Subscribes to websocket for getting claim status
+      tags:
+        - Claim
+      security:
+        - basicAuth: [ ]
+      parameters:
+        - $ref: '#/components/parameters/pathIdentifier'
+        - $ref: '#/components/parameters/pathClaimType'
+      responses:
+        '200':
+          description: ok
+        '500':
+          $ref: '#/components/responses/500'
+
   /v1/credentials/revoke/{nonce}:
     post:
       summary: Revoke Credential
@@ -419,7 +437,7 @@ paths:
     get:
       summary: Get Credential QR code
       operationId: GetCredentialQrCode
-      description: Returns a a json that can be used to create the QR Code to scan for accepting a credential.
+      description: Returns a json that can be used to create the QR Code to scan for accepting a credential.
       tags:
         - Credential
       parameters:

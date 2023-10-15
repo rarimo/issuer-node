@@ -314,6 +314,18 @@ func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject
 	return ClaimOffer200JSONResponse(getCredentialQrCodeResponse(claims[0], s.cfg.APIUI.ServerURL)), nil
 }
 
+func (s *Server) SubscribeToClaimWebsocket(ctx context.Context, request SubscribeToClaimWebsocketRequestObject) (SubscribeToClaimWebsocketResponseObject, error) {
+	resp := WebsocketResponse{
+		ctx:             ctx,
+		request:         request,
+		issuerDID:       s.cfg.APIUI.IssuerDID,
+		hostURL:         s.cfg.ServerUrl,
+		claimService:    s.claimService,
+		identityService: s.identityService,
+	}
+	return resp, nil
+}
+
 // DeleteCredential deletes a credential
 func (s *Server) DeleteCredential(ctx context.Context, request DeleteCredentialRequestObject) (DeleteCredentialResponseObject, error) {
 	err := s.claimService.Delete(ctx, request.Id)

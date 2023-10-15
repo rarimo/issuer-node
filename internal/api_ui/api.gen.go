@@ -546,6 +546,9 @@ type ServerInterface interface {
 	// Claim Offer
 	// (GET /v1/credentials/{user-id}/{claim-type})
 	ClaimOffer(w http.ResponseWriter, r *http.Request, userId PathIdentifier, claimType PathClaimType)
+	// Websocket For Getting Claim Status
+	// (GET /v1/credentials/{user-id}/{claim-type}/subscribe)
+	SubscribeToClaimWebsocket(w http.ResponseWriter, r *http.Request, userId PathIdentifier, claimType PathClaimType)
 	// Get Schemas
 	// (GET /v1/schemas)
 	GetSchemas(w http.ResponseWriter, r *http.Request, params GetSchemasParams)
@@ -1395,6 +1398,43 @@ func (siw *ServerInterfaceWrapper) ClaimOffer(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// SubscribeToClaimWebsocket operation middleware
+func (siw *ServerInterfaceWrapper) SubscribeToClaimWebsocket(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "user-id" -------------
+	var userId PathIdentifier
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "user-id", runtime.ParamLocationPath, chi.URLParam(r, "user-id"), &userId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user-id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "claim-type" -------------
+	var claimType PathClaimType
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "claim-type", runtime.ParamLocationPath, chi.URLParam(r, "claim-type"), &claimType)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "claim-type", Err: err})
+		return
+	}
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{""})
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SubscribeToClaimWebsocket(w, r, userId, claimType)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // GetSchemas operation middleware
 func (siw *ServerInterfaceWrapper) GetSchemas(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1737,6 +1777,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/credentials/{user-id}/{claim-type}", wrapper.ClaimOffer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/credentials/{user-id}/{claim-type}/subscribe", wrapper.SubscribeToClaimWebsocket)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/schemas", wrapper.GetSchemas)
@@ -2784,6 +2827,32 @@ func (response ClaimOffer500JSONResponse) VisitClaimOfferResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type SubscribeToClaimWebsocketRequestObject struct {
+	UserId    PathIdentifier `json:"user-id"`
+	ClaimType PathClaimType  `json:"claim-type"`
+}
+
+type SubscribeToClaimWebsocketResponseObject interface {
+	VisitSubscribeToClaimWebsocketResponse(w http.ResponseWriter) error
+}
+
+type SubscribeToClaimWebsocket200Response struct {
+}
+
+func (response SubscribeToClaimWebsocket200Response) VisitSubscribeToClaimWebsocketResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type SubscribeToClaimWebsocket500JSONResponse struct{ N500JSONResponse }
+
+func (response SubscribeToClaimWebsocket500JSONResponse) VisitSubscribeToClaimWebsocketResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetSchemasRequestObject struct {
 	Params GetSchemasParams
 }
@@ -3105,6 +3174,9 @@ type StrictServerInterface interface {
 	// Claim Offer
 	// (GET /v1/credentials/{user-id}/{claim-type})
 	ClaimOffer(ctx context.Context, request ClaimOfferRequestObject) (ClaimOfferResponseObject, error)
+	// Websocket For Getting Claim Status
+	// (GET /v1/credentials/{user-id}/{claim-type}/subscribe)
+	SubscribeToClaimWebsocket(ctx context.Context, request SubscribeToClaimWebsocketRequestObject) (SubscribeToClaimWebsocketResponseObject, error)
 	// Get Schemas
 	// (GET /v1/schemas)
 	GetSchemas(ctx context.Context, request GetSchemasRequestObject) (GetSchemasResponseObject, error)
@@ -3936,6 +4008,33 @@ func (sh *strictHandler) ClaimOffer(w http.ResponseWriter, r *http.Request, user
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ClaimOfferResponseObject); ok {
 		if err := validResponse.VisitClaimOfferResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("Unexpected response type: %T", response))
+	}
+}
+
+// SubscribeToClaimWebsocket operation middleware
+func (sh *strictHandler) SubscribeToClaimWebsocket(w http.ResponseWriter, r *http.Request, userId PathIdentifier, claimType PathClaimType) {
+	var request SubscribeToClaimWebsocketRequestObject
+
+	request.UserId = userId
+	request.ClaimType = claimType
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SubscribeToClaimWebsocket(ctx, request.(SubscribeToClaimWebsocketRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SubscribeToClaimWebsocket")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SubscribeToClaimWebsocketResponseObject); ok {
+		if err := validResponse.VisitSubscribeToClaimWebsocketResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

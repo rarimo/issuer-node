@@ -90,7 +90,7 @@ build:
 
 .PHONY: build-arm
 build-arm:
-	COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_FILE="Dockerfile-arm" $(DOCKER_COMPOSE_CMD) build api pending_publisher
+	COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_FILE="Dockerfile-arm" $(DOCKER_COMPOSE_CMD) build api pending_publisher initializer
 
 .PHONY: build-ui
 build-ui:
