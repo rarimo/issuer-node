@@ -23,7 +23,11 @@ type WebsocketResponse struct {
 }
 
 func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.ResponseWriter) error {
-	var upgrader = websocket.Upgrader{}
+	var upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
 
 	value := wr.ctx.Value(ReqReq)
 	if value == nil {
