@@ -311,7 +311,18 @@ func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject
 		return ClaimOffer404JSONResponse{N404JSONResponse{"claim not found"}}, nil
 	}
 
-	return ClaimOffer200JSONResponse(getCredentialQrCodeResponse(claims[0], s.cfg.APIUI.ServerURL)), nil
+	claim := new(domain.Claim)
+	for _, claimToProcess := range claims {
+		if claimToProcess.IdentityState != nil {
+			claim = claimToProcess
+		}
+	}
+
+	if claim == nil {
+		return ClaimOffer404JSONResponse{N404JSONResponse{"claim not found"}}, nil
+	}
+
+	return ClaimOffer200JSONResponse(getCredentialQrCodeResponse(claim, s.cfg.APIUI.ServerURL)), nil
 }
 
 func (s *Server) SubscribeToClaimWebsocket(ctx context.Context, request SubscribeToClaimWebsocketRequestObject) (SubscribeToClaimWebsocketResponseObject, error) {
