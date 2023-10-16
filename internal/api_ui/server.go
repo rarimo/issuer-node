@@ -318,7 +318,7 @@ func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject
 		}
 	}
 
-	if claim == nil {
+	if claim.IdentityState == nil {
 		return ClaimOffer404JSONResponse{N404JSONResponse{"claim not found"}}, nil
 	}
 

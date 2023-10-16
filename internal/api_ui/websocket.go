@@ -90,7 +90,7 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 			}
 		}
 
-		if claim == nil {
+		if claim.IdentityState == nil {
 			if err := c.WriteMessage(websocket.TextMessage, []byte("processing")); err != nil {
 				log.Error(wr.ctx, "failed to write ws message", "err", err)
 				break
