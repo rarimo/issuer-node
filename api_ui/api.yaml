@@ -349,8 +349,6 @@ paths:
       description: Endpoint to receive a credential by user ID and claim type.
       tags:
         - Credential
-      security:
-        - basicAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/pathIdentifier'
         - $ref: '#/components/parameters/pathClaimType'
@@ -375,8 +373,6 @@ paths:
       description: Subscribes to websocket for getting claim status
       tags:
         - Claim
-      security:
-        - basicAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/pathIdentifier'
         - $ref: '#/components/parameters/pathClaimType'

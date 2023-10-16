@@ -1385,8 +1385,6 @@ func (siw *ServerInterfaceWrapper) ClaimOffer(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	ctx = context.WithValue(ctx, BasicAuthScopes, []string{""})
-
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ClaimOffer(w, r, userId, claimType)
 	})
@@ -1421,8 +1419,6 @@ func (siw *ServerInterfaceWrapper) SubscribeToClaimWebsocket(w http.ResponseWrit
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "claim-type", Err: err})
 		return
 	}
-
-	ctx = context.WithValue(ctx, BasicAuthScopes, []string{""})
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SubscribeToClaimWebsocket(w, r, userId, claimType)
