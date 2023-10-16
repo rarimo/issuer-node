@@ -347,6 +347,7 @@ func bindEnv() {
 	_ = viper.BindEnv("NativeProofGenerationEnabled", "ISSUER_NATIVE_PROOF_GENERATION_ENABLED")
 	_ = viper.BindEnv("PublishingKeyPath", "ISSUER_PUBLISH_KEY_PATH")
 	_ = viper.BindEnv("OnChainCheckStatusFrequency", "ISSUER_ONCHAIN_CHECK_STATUS_FREQUENCY")
+	_ = viper.BindEnv("StatesTransitionFrequency", "ISSUER_STATES_TRANSITION_FREQUENCY")
 
 	_ = viper.BindEnv("Database.URL", "ISSUER_DATABASE_URL")
 
@@ -422,6 +423,10 @@ func checkEnvVars(ctx context.Context, cfg *Configuration) {
 
 	if cfg.OnChainCheckStatusFrequency == 0 {
 		log.Info(ctx, "ISSUER_ONCHAIN_CHECK_STATUS_FREQUENCY value is missing")
+	}
+
+	if cfg.StatesTransitionFrequency == 0 {
+		log.Info(ctx, "ISSUER_STATES_TRANSITION_FREQUENCY value is missing")
 	}
 
 	if cfg.Database.URL == "" {
