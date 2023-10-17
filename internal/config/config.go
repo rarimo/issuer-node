@@ -348,6 +348,7 @@ func bindEnv() {
 	_ = viper.BindEnv("PublishingKeyPath", "ISSUER_PUBLISH_KEY_PATH")
 	_ = viper.BindEnv("OnChainCheckStatusFrequency", "ISSUER_ONCHAIN_CHECK_STATUS_FREQUENCY")
 	_ = viper.BindEnv("StatesTransitionFrequency", "ISSUER_STATES_TRANSITION_FREQUENCY")
+	_ = viper.BindEnv("IsGasPriceZero", "ISSUER_IS_GAS_PRICE_ZERO")
 
 	_ = viper.BindEnv("Database.URL", "ISSUER_DATABASE_URL")
 
