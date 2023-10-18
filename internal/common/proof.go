@@ -124,6 +124,7 @@ type Iden3SparseMerkleTreeProof struct {
 
 func (p *Iden3SparseMerkleTreeProof) UnmarshalJSON(src []byte) error {
 	var obj struct {
+		ID         string               `json:"id"`
 		Type       verifiable.ProofType `json:"type"`
 		IssuerData json.RawMessage      `json:"issuerData"`
 		CoreClaim  string               `json:"coreClaim"`
@@ -146,6 +147,7 @@ func (p *Iden3SparseMerkleTreeProof) UnmarshalJSON(src []byte) error {
 		return errors.Wrap(err, "failed to validate core claim")
 	}
 
+	p.ID = obj.ID
 	p.Type = obj.Type
 	p.CoreClaim = obj.CoreClaim
 	p.MTP = obj.MTP

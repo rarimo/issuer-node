@@ -168,8 +168,8 @@ func NewAgentRequest(basicMessage *comm.BasicMessage) (*AgentRequest, error) {
 
 	return &AgentRequest{
 		Body:      basicMessage.Body,
-		UserDID:   fromDID,
-		IssuerDID: toDID,
+		UserDID:   toDID,
+		IssuerDID: fromDID,
 		ThreadID:  basicMessage.ThreadID,
 		ClaimID:   claimID,
 		Typ:       basicMessage.Typ,
