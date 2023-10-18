@@ -330,7 +330,7 @@ func (s *Server) SubscribeToClaimWebsocket(ctx context.Context, request Subscrib
 		ctx:             ctx,
 		request:         request,
 		issuerDID:       s.cfg.APIUI.IssuerDID,
-		hostURL:         s.cfg.ServerUrl,
+		hostURL:         s.cfg.APIUI.ServerURL,
 		claimService:    s.claimService,
 		identityService: s.identityService,
 	}
