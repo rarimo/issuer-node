@@ -674,6 +674,8 @@ func (i *identity) createIdentity(ctx context.Context, tx db.Querier, DIDMethod 
 		return nil, nil, fmt.Errorf("can't create authClaimModel: %w", err)
 	}
 
+	authClaimModel.ID = claimID
+
 	mtpProof, err := i.getAuthClaimMtpProof(ctx, claimsTree, currentState, authClaim, did, hostURL, claimID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't add get current state from merkle tree: %w", err)
