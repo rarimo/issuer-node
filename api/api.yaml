@@ -778,7 +778,7 @@ components:
               type: string
             rootOfRoots:
               type: string
-            claimTreeRoot:
+            claimsTreeRoot:
               type: string
             revocationTreeRoot:
               type: string

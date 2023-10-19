@@ -583,12 +583,12 @@ func toGetClaimQrCode200JSONResponse(claim *domain.Claim, hostURL string) *GetCl
 func toGetClaimMTP200JSONResponse(state *domain.IdentityState, proof *merkletree.Proof) *GetClaimMTP200JSONResponse {
 	response := GetClaimMTP200JSONResponse{
 		Issuer: struct {
-			ClaimTreeRoot      *string `json:"claimTreeRoot,omitempty"`
+			ClaimsTreeRoot     *string `json:"claimsTreeRoot,omitempty"`
 			RevocationTreeRoot *string `json:"revocationTreeRoot,omitempty"`
 			RootOfRoots        *string `json:"rootOfRoots,omitempty"`
 			State              *string `json:"state,omitempty"`
 		}{
-			ClaimTreeRoot:      state.ClaimsTreeRoot,
+			ClaimsTreeRoot:     state.ClaimsTreeRoot,
 			RevocationTreeRoot: state.RevocationTreeRoot,
 			RootOfRoots:        state.RootOfRoots,
 			State:              state.State,

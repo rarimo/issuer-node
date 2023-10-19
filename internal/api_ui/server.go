@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/iden3/go-merkletree-sql/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -323,6 +324,66 @@ func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject
 	}
 
 	return ClaimOffer200JSONResponse(getCredentialQrCodeResponse(claim, s.cfg.APIUI.ServerURL)), nil
+}
+
+func (s *Server) GetClaimMTP(ctx context.Context, request GetClaimMTPRequestObject) (GetClaimMTPResponseObject, error) {
+	if request.Id.String() == "" {
+		return GetClaimMTP400JSONResponse{N400JSONResponse{"cannot proceed with an empty claim id"}}, nil
+	}
+
+	claim, err := s.claimService.GetBySingleID(ctx, request.Id)
+	if err != nil {
+		if errors.Is(err, services.ErrClaimNotFound) {
+			return GetClaimMTP404JSONResponse{N404JSONResponse{err.Error()}}, nil
+		}
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	state := new(domain.IdentityState)
+	if request.Params.StateHash == nil {
+		issuerDID, err := core.ParseDID(claim.Issuer)
+		if err != nil {
+			log.Error(ctx, "failed to parse DID", err)
+			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+		}
+		state, err = s.identityService.GetLatestStateByID(context.Background(), *issuerDID)
+		if err != nil {
+			log.Error(ctx, "failed to get latest state by ID", err)
+			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+		}
+	} else {
+		state, err = s.identityService.GetStateByHash(ctx, *request.Params.StateHash)
+		if err != nil {
+			log.Error(ctx, "failed to get state by hash", err)
+			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+		}
+	}
+
+	leaf, err := claim.CoreClaim.Get().HIndex()
+	if err != nil {
+		log.Error(ctx, "failed to get HIndex", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	root, err := merkletree.NewHashFromHex(*state.ClaimsTreeRoot)
+	if err != nil {
+		log.Error(ctx, "failed to get new hash from hex", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	mtID, err := s.claimService.GetMTIDByKey(ctx, *state.ClaimsTreeRoot)
+	if err != nil {
+		log.Error(ctx, "failed to get MT proof", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	proof, err := s.claimService.GetMTProof(ctx, leaf, root, mtID)
+	if err != nil {
+		log.Error(ctx, "failed to get MT proof", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	return toGetClaimMTP200JSONResponse(state, proof), nil
 }
 
 func (s *Server) SubscribeToClaimWebsocket(ctx context.Context, request SubscribeToClaimWebsocketRequestObject) (SubscribeToClaimWebsocketResponseObject, error) {
@@ -795,4 +856,44 @@ func writeFile(path string, mimeType string, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", mimeType)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(f)
+}
+
+func toGetClaimMTP200JSONResponse(state *domain.IdentityState, proof *merkletree.Proof) *GetClaimMTP200JSONResponse {
+	response := GetClaimMTP200JSONResponse{
+		Issuer: struct {
+			ClaimsTreeRoot     *string `json:"claimsTreeRoot,omitempty"`
+			RevocationTreeRoot *string `json:"revocationTreeRoot,omitempty"`
+			RootOfRoots        *string `json:"rootOfRoots,omitempty"`
+			State              *string `json:"state,omitempty"`
+		}{
+			ClaimsTreeRoot:     state.ClaimsTreeRoot,
+			RevocationTreeRoot: state.RevocationTreeRoot,
+			RootOfRoots:        state.RootOfRoots,
+			State:              state.State,
+		},
+	}
+
+	response.Mtp.Existence = proof.Existence
+
+	if proof.NodeAux != nil {
+		key := proof.NodeAux.Key
+		decodedKey := key.BigInt().String()
+		value := proof.NodeAux.Value
+		decodedValue := value.BigInt().String()
+		response.Mtp.NodeAux = &struct {
+			Key   *string `json:"key,omitempty"`
+			Value *string `json:"value,omitempty"`
+		}{
+			Key:   &decodedKey,
+			Value: &decodedValue,
+		}
+	}
+
+	siblings := make([]string, 0)
+	for _, s := range proof.AllSiblings() {
+		siblings = append(siblings, s.BigInt().String())
+	}
+	response.Mtp.Siblings = &siblings
+
+	return &response
 }

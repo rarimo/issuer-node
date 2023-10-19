@@ -452,6 +452,29 @@ paths:
         '500':
           $ref: '#/components/responses/500'
 
+  /v1/claims/{id}/mtp:
+    get:
+      summary: Get Claim MTP
+      operationId: GetClaimMTP
+      description: Returns claim's MT inclusion proof for a given state hash.
+      tags:
+        - Claim
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/pathStateHash'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetClaimMTPResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '404':
+          $ref: '#/components/responses/404'
+        '500':
+          $ref: '#/components/responses/500'
   #schemas:
   /v1/schemas:
     post:
@@ -947,6 +970,43 @@ components:
       x-omitempty: false
       additionalProperties:
         type: boolean
+
+    GetClaimMTPResponse:
+      type: object
+      required:
+        - issuer
+        - mtp
+      properties:
+        issuer:
+          type: object
+          properties:
+            state:
+              type: string
+            rootOfRoots:
+              type: string
+            claimsTreeRoot:
+              type: string
+            revocationTreeRoot:
+              type: string
+        mtp:
+          type: object
+          required:
+            - existence
+          properties:
+            existence:
+              type: boolean
+            siblings:
+              type: array
+              x-omitempty: false
+              items:
+                type: string
+            node_aux:
+              type: object
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
 
     AuthenticationQrCodeResponse:
       type: object

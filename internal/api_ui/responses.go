@@ -2,6 +2,7 @@ package api_ui
 
 import (
 	"fmt"
+	"github.com/oapi-codegen/runtime/types"
 	"strings"
 	"time"
 
@@ -209,7 +210,7 @@ func getLinkResponse(link domain.Link) Link {
 		ProofTypes:           getLinkProofs(link),
 		CreatedAt:            link.CreatedAt,
 		Expiration:           link.ValidUntil,
-		CredentialExpiration: date,
+		CredentialExpiration: (*types.Date)(date),
 	}
 }
 
