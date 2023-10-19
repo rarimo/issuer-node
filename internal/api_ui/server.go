@@ -2,12 +2,9 @@ package api_ui
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/iden3/go-merkletree-sql/v2"
-	"github.com/iden3/iden3comm/protocol"
 	"net/http"
 	"net/url"
 	"os"
@@ -760,27 +757,17 @@ func (s *Server) GetLinkQRCode(ctx context.Context, request GetLinkQRCodeRequest
 
 // Agent is the controller to fetch credentials from mobile
 func (s *Server) Agent(ctx context.Context, request AgentRequestObject) (AgentResponseObject, error) {
-	//if request.Body == nil || *request.Body == "" {
-	//	log.Debug(ctx, "agent empty request")
-	//	return Agent400JSONResponse{N400JSONResponse{"cannot proceed with an empty request"}}, nil
-	//}
-	//log.Debug(ctx, "agent body", *request.Body)
-	//basicMessage, err := s.packageManager.UnpackWithType(packers.MediaTypeZKPMessage, []byte(*request.Body))
-	//if err != nil {
-	//	log.Debug(ctx, "agent bad request", "err", err, "body", *request.Body)
-	//	return Agent400JSONResponse{N400JSONResponse{"cannot proceed with the given request"}}, nil
-	//}
-	//log.Debug(ctx, "basic agent message", *basicMessage)
-
-	basicMessage := new(iden3comm.BasicMessage)
-	basicMessage.ID = uuid.NewString()
-	raw := []byte("{\"id\":\"59cd23e2-6ea2-11ee-9a51-0242ac1a0009\"}")
-	basicMessage.Body = json.RawMessage(raw)
-	basicMessage.Typ = packers.MediaTypePlainMessage
-	basicMessage.Type = protocol.CredentialFetchRequestMessageType
-	basicMessage.ThreadID = uuid.NewString()
-	basicMessage.From = "did:iden3:tNMNJqPvHCDFvDfR7KRnzabaRgeQFJJgkvwdf4ZAk"
-	basicMessage.To = "did:iden3:tMFrXneRjPix8ga1awFmaCk2HnA2isTxfKgZ9Y8JX"
+	if request.Body == nil || *request.Body == "" {
+		log.Debug(ctx, "agent empty request")
+		return Agent400JSONResponse{N400JSONResponse{"cannot proceed with an empty request"}}, nil
+	}
+	log.Debug(ctx, "agent body", *request.Body)
+	basicMessage, err := s.packageManager.UnpackWithType(packers.MediaTypeZKPMessage, []byte(*request.Body))
+	if err != nil {
+		log.Debug(ctx, "agent bad request", "err", err, "body", *request.Body)
+		return Agent400JSONResponse{N400JSONResponse{"cannot proceed with the given request"}}, nil
+	}
+	log.Debug(ctx, "basic agent message", *basicMessage)
 
 	req, err := ports.NewAgentRequest(basicMessage)
 	if err != nil {
