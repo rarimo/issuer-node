@@ -49,10 +49,11 @@ var (
 
 // ClaimCfg claim service configuration
 type ClaimCfg struct {
-	RHSEnabled bool // ReverseHash Enabled
-	RHSUrl     string
-	Host       string
-	UIHost     string
+	RHSEnabled   bool // ReverseHash Enabled
+	RHSUrl       string
+	Host         string
+	UIHost       string
+	SingleIssuer bool
 }
 
 type claim struct {
@@ -143,7 +144,7 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 		return nil, err
 	}
 
-	vc, err := c.createVC(req, vcID, jsonLdContext, nonce)
+	vc, err := c.createVC(req, vcID, jsonLdContext, nonce) // FIXME here id link
 	if err != nil {
 		log.Error(ctx, "creating verifiable credential", "err", err)
 		return nil, err
@@ -648,11 +649,11 @@ func (c *claim) newVerifiableCredential(claimReq *ports.CreateClaimRequest, vcID
 
 	credentialSubject["type"] = claimReq.Type
 
-	cs := c.getRevocationSource(claimReq.DID.String(), nonce, claimReq.SingleIssuer)
+	cs := c.getRevocationSource(claimReq.DID.String(), nonce, claimReq.SingleIssuer) // TODO
 
 	issuanceDate := time.Now()
 	return verifiable.W3CCredential{
-		ID:                c.buildCredentialID(*claimReq.DID, vcID, claimReq.SingleIssuer),
+		ID:                c.buildCredentialID(*claimReq.DID, vcID, claimReq.SingleIssuer), // TODO
 		Context:           credentialCtx,
 		Type:              credentialType,
 		Expiration:        claimReq.Expiration,
@@ -670,18 +671,18 @@ func (c *claim) newVerifiableCredential(claimReq *ports.CreateClaimRequest, vcID
 func (c *claim) getRevocationSource(issuerDID string, nonce uint64, singleIssuer bool) interface{} {
 	if c.cfg.RHSEnabled {
 		return &verifiable.RHSCredentialStatus{
-			ID:              fmt.Sprintf("%s/node", strings.TrimSuffix(c.cfg.RHSUrl, "/")),
+			ID:              fmt.Sprintf("%s/node", strings.TrimSuffix(c.cfg.RHSUrl, "/")), // TODO
 			Type:            verifiable.Iden3ReverseSparseMerkleTreeProof,
 			RevocationNonce: nonce,
 			StatusIssuer: &verifiable.CredentialStatus{
-				ID:              buildRevocationURL(c.cfg.Host, issuerDID, nonce, singleIssuer),
+				ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer), // TODO
 				Type:            verifiable.SparseMerkleTreeProof,
 				RevocationNonce: nonce,
 			},
 		}
 	}
 	return &verifiable.CredentialStatus{
-		ID:              buildRevocationURL(c.cfg.Host, issuerDID, nonce, singleIssuer),
+		ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer), // TODO
 		Type:            verifiable.SparseMerkleTreeProof,
 		RevocationNonce: nonce,
 	}
@@ -689,22 +690,26 @@ func (c *claim) getRevocationSource(issuerDID string, nonce uint64, singleIssuer
 
 func (c *claim) buildCredentialID(issuerDID core.DID, credID uuid.UUID, singleIssuer bool) string {
 	if singleIssuer {
-		return fmt.Sprintf("%s/v1/credentials/%s", strings.TrimSuffix(c.cfg.Host, "/"), credID.String())
+		return fmt.Sprintf("%s/v1/credentials/%s", strings.TrimSuffix(c.cfg.UIHost, "/"), credID.String()) // FIXME UI host
 	}
 
 	return fmt.Sprintf("%s/v1/%s/claims/%s", strings.TrimSuffix(c.cfg.Host, "/"), issuerDID.String(), credID.String())
 }
 
-func buildRevocationURL(host, issuerDID string, nonce uint64, singleIssuer bool) string {
+func buildRevocationURL(cfg ClaimCfg, issuerDID string, nonce uint64, singleIssuer bool) string {
 	if singleIssuer {
 		return fmt.Sprintf("%s/v1/credentials/revocation/status/%d",
-			host, nonce)
+			cfg.UIHost, nonce)
 	}
 
 	return fmt.Sprintf("%s/v1/%s/claims/revocation/status/%d",
-		host, url.QueryEscape(issuerDID), nonce)
+		cfg.Host, url.QueryEscape(issuerDID), nonce)
 }
 
 func (c *claim) buildMTProofURL(credID uuid.UUID) string {
+	if c.cfg.SingleIssuer {
+		return fmt.Sprintf("%s/v1/claims/%s/mtp", c.cfg.UIHost, credID.String())
+	}
+
 	return fmt.Sprintf("%s/v1/claims/%s/mtp", c.cfg.Host, credID.String())
 }

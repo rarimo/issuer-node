@@ -49,6 +49,7 @@ type Configuration struct {
 	IFPS                         IPFS               `mapstructure:"IPFS"`
 	GasPriceZero                 bool               `mapstructure:"IsGasPriceZero"`
 	StatesTransitionFrequency    time.Duration      `mapstructure:"StatesTransitionFrequency"`
+	SingleIssuer                 bool               `mapstructure:"SingleIssuer"`
 }
 
 // Database has the database configuration
@@ -399,6 +400,7 @@ func bindEnv() {
 	_ = viper.BindEnv("APIUI.IdentityMethod", "ISSUER_API_IDENTITY_METHOD")
 	_ = viper.BindEnv("APIUI.IdentityBlockchain", "ISSUER_API_IDENTITY_BLOCKCHAIN")
 	_ = viper.BindEnv("APIUI.IdentityNetwork", "ISSUER_API_IDENTITY_NETWORK")
+	_ = viper.BindEnv("SingleIssuer", "ISSUER_SINGLE")
 
 	viper.AutomaticEnv()
 }

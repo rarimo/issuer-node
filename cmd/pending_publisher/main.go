@@ -130,10 +130,11 @@ func main() {
 		schemaLoader,
 		storage,
 		services.ClaimCfg{
-			RHSEnabled: cfg.ReverseHashService.Enabled,
-			RHSUrl:     cfg.ReverseHashService.URL,
-			Host:       cfg.ServerUrl,
-			UIHost:     cfg.APIUI.ServerURL,
+			RHSEnabled:   cfg.ReverseHashService.Enabled,
+			RHSUrl:       cfg.ReverseHashService.URL,
+			Host:         cfg.ServerUrl,
+			UIHost:       cfg.APIUI.ServerURL,
+			SingleIssuer: cfg.SingleIssuer,
 		},
 		ps,
 		cfg.IFPS.GatewayURL,
@@ -241,7 +242,7 @@ func onChainPublisherRunner(ctx context.Context, cfg *config.Configuration, publ
 		select {
 		case <-ticker.C:
 			// If the previous state publishing is failed, we try to re-publish it
-			republishedState, err := publisher.RetryPublishState(ctx, &cfg.APIUI.IssuerDID)
+			republishedState, err := publisher.RetryPublishState(ctx, &cfg.APIUI.IssuerDID) // TODO single
 			if err != nil && !errors.Is(err, gateways.ErrNoFailedStatesToProcess) {
 				if errors.Is(err, gateways.ErrStateIsBeingProcessed) {
 					continue
@@ -259,7 +260,7 @@ func onChainPublisherRunner(ctx context.Context, cfg *config.Configuration, publ
 				continue
 			}
 
-			publishedState, err := publisher.PublishState(ctx, &cfg.APIUI.IssuerDID)
+			publishedState, err := publisher.PublishState(ctx, &cfg.APIUI.IssuerDID) // TODO single
 			if err != nil {
 				if errors.Is(err, gateways.ErrStateIsBeingProcessed) ||
 					errors.Is(err, gateways.ErrNoStatesToProcess) {

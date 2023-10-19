@@ -58,7 +58,7 @@ func FromClaimModelToW3CCredential(claim domain.Claim, platformUIHost string) (*
 			return nil, err
 		}
 
-		ep := strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1]
+		ep := strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1] // TODO remove
 		signatureProof.IssuerData.UpdateURL = platformUIHost + "/v1/" + ep
 
 		proofs = append(proofs, signatureProof)
@@ -75,7 +75,7 @@ func FromClaimModelToW3CCredential(claim domain.Claim, platformUIHost string) (*
 		ep := strings.Split(mtpProof.ID, "/v1/")[1]
 		mtpProof.ID = platformUIHost + "/v1/" + ep
 
-		ep = strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1]
+		ep = strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1] // TODO remove
 		mtpProof.IssuerData.UpdateURL = platformUIHost + "/v1/" + ep
 
 		proofs = append(proofs, mtpProof)
