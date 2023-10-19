@@ -52,6 +52,7 @@ type ClaimCfg struct {
 	RHSEnabled bool // ReverseHash Enabled
 	RHSUrl     string
 	Host       string
+	UIHost     string
 }
 
 type claim struct {
@@ -73,6 +74,7 @@ func NewClaim(repo ports.ClaimsRepository, idenSrv ports.IdentityService, mtServ
 			RHSEnabled: cfg.RHSEnabled,
 			RHSUrl:     cfg.RHSUrl,
 			Host:       cfg.Host,
+			UIHost:     cfg.UIHost,
 		},
 		icRepo:                  repo,
 		identitySrv:             idenSrv,
@@ -597,7 +599,7 @@ func (c *claim) getAgentCredential(ctx context.Context, basicMessage *ports.Agen
 		return nil, err
 	}
 
-	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim)
+	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim, c.cfg.UIHost)
 	if err != nil {
 		log.Error(ctx, "creating W3 credential", "err", err)
 		return nil, fmt.Errorf("failed to convert claim to  w3cCredential: %w", err)

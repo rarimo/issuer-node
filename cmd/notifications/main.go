@@ -128,6 +128,7 @@ func newCredentialsService(cfg *config.Configuration, storage *db.Storage, cache
 			RHSEnabled: cfg.ReverseHashService.Enabled,
 			RHSUrl:     cfg.ReverseHashService.URL,
 			Host:       cfg.ServerUrl,
+			UIHost:     cfg.APIUI.ServerURL,
 		},
 		ps,
 		cfg.IFPS.GatewayURL,

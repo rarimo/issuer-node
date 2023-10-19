@@ -92,7 +92,7 @@ func getProofs(credential *domain.Claim) []string {
 	return proofs
 }
 
-func connectionsResponse(conns []*domain.Connection) (GetConnectionsResponse, error) {
+func connectionsResponse(conns []*domain.Connection, platformUIHost string) (GetConnectionsResponse, error) {
 	resp := make([]GetConnectionResponse, 0)
 	var err error
 	for _, conn := range conns {
@@ -100,7 +100,7 @@ func connectionsResponse(conns []*domain.Connection) (GetConnectionsResponse, er
 		var connCreds domain.Credentials
 		if conn.Credentials != nil {
 			connCreds = *conn.Credentials
-			w3creds, err = schema.FromClaimsModelToW3CCredential(connCreds)
+			w3creds, err = schema.FromClaimsModelToW3CCredential(connCreds, platformUIHost)
 			if err != nil {
 				return nil, err
 			}

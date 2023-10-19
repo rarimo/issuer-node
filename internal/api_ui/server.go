@@ -193,7 +193,7 @@ func (s *Server) GetConnection(ctx context.Context, request GetConnectionRequest
 		return GetConnection500JSONResponse{N500JSONResponse{"There was an error retrieving the connection"}}, nil
 	}
 
-	w3credentials, err := schema.FromClaimsModelToW3CCredential(credentials)
+	w3credentials, err := schema.FromClaimsModelToW3CCredential(credentials, s.cfg.APIUI.ServerURL)
 	if err != nil {
 		log.Debug(ctx, "get connection internal server error converting credentials to w3c", "err", err, "req", request)
 		return GetConnection500JSONResponse{N500JSONResponse{"There was an error parsing the credential of the given connection"}}, nil
@@ -211,7 +211,7 @@ func (s *Server) GetConnections(ctx context.Context, request GetConnectionsReque
 		return GetConnections500JSONResponse{N500JSONResponse{"Unexpected error while retrieving connections"}}, nil
 	}
 
-	resp, err := connectionsResponse(conns)
+	resp, err := connectionsResponse(conns, s.cfg.APIUI.ServerURL)
 	if err != nil {
 		log.Error(ctx, "get connection request invalid claim format", "err", err)
 		return GetConnections500JSONResponse{N500JSONResponse{"Unexpected error while retrieving connections"}}, nil
@@ -266,7 +266,7 @@ func (s *Server) GetCredential(ctx context.Context, request GetCredentialRequest
 		return GetCredential500JSONResponse{N500JSONResponse{"There was an error trying to retrieve the credential information"}}, nil
 	}
 
-	w3c, err := schema.FromClaimModelToW3CCredential(*credential)
+	w3c, err := schema.FromClaimModelToW3CCredential(*credential, s.cfg.APIUI.ServerURL)
 	if err != nil {
 		return GetCredential500JSONResponse{N500JSONResponse{"Invalid claim format"}}, nil
 	}
@@ -287,7 +287,7 @@ func (s *Server) GetCredentials(ctx context.Context, request GetCredentialsReque
 	}
 	response := make([]Credential, len(credentials))
 	for i, credential := range credentials {
-		w3c, err := schema.FromClaimModelToW3CCredential(*credential)
+		w3c, err := schema.FromClaimModelToW3CCredential(*credential, s.cfg.APIUI.ServerURL)
 		if err != nil {
 			log.Error(ctx, "creating credentials response", "err", err, "req", request)
 			return GetCredentials500JSONResponse{N500JSONResponse{"Invalid claim format"}}, nil

@@ -256,7 +256,7 @@ func (s *Server) GetClaim(ctx context.Context, request GetClaimRequestObject) (G
 		return GetClaim500JSONResponse{N500JSONResponse{err.Error()}}, nil
 	}
 
-	w3c, err := schema.FromClaimModelToW3CCredential(*claim)
+	w3c, err := schema.FromClaimModelToW3CCredential(*claim, s.cfg.APIUI.ServerURL)
 	if err != nil {
 		return GetClaim500JSONResponse{N500JSONResponse{"invalid claim format"}}, nil
 	}
@@ -292,7 +292,7 @@ func (s *Server) GetClaims(ctx context.Context, request GetClaimsRequestObject) 
 		return GetClaims500JSONResponse{N500JSONResponse{"there was an internal error trying to retrieve claims for the requested identifier"}}, nil
 	}
 
-	w3Claims, err := schema.FromClaimsModelToW3CCredential(claims)
+	w3Claims, err := schema.FromClaimsModelToW3CCredential(claims, s.cfg.APIUI.ServerURL)
 	if err != nil {
 		return GetClaims500JSONResponse{N500JSONResponse{"there was an internal error parsing the claims"}}, nil
 	}

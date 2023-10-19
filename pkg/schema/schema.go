@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/polygonid/sh-id-platform/internal/log"
+	"strings"
 
 	core "github.com/iden3/go-iden3-core"
 	jsonSuite "github.com/iden3/go-schema-processor/json"
@@ -37,7 +38,7 @@ func LoadSchema(ctx context.Context, loader loader.Loader) (jsonSuite.Schema, er
 }
 
 // FromClaimModelToW3CCredential JSON-LD response base on claim
-func FromClaimModelToW3CCredential(claim domain.Claim) (*verifiable.W3CCredential, error) {
+func FromClaimModelToW3CCredential(claim domain.Claim, platformUIHost string) (*verifiable.W3CCredential, error) {
 	var cred verifiable.W3CCredential
 
 	err := json.Unmarshal(claim.Data.Bytes, &cred)
@@ -56,6 +57,10 @@ func FromClaimModelToW3CCredential(claim domain.Claim) (*verifiable.W3CCredentia
 		if err != nil {
 			return nil, err
 		}
+
+		ep := strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1]
+		signatureProof.IssuerData.UpdateURL = platformUIHost + "/v1/" + ep
+
 		proofs = append(proofs, signatureProof)
 	}
 
@@ -66,6 +71,13 @@ func FromClaimModelToW3CCredential(claim domain.Claim) (*verifiable.W3CCredentia
 		if err != nil {
 			return nil, err
 		}
+
+		ep := strings.Split(mtpProof.ID, "/v1/")[1]
+		mtpProof.ID = platformUIHost + "/v1/" + ep
+
+		ep = strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1]
+		mtpProof.IssuerData.UpdateURL = platformUIHost + "/v1/" + ep
+
 		proofs = append(proofs, mtpProof)
 
 	}
@@ -75,10 +87,10 @@ func FromClaimModelToW3CCredential(claim domain.Claim) (*verifiable.W3CCredentia
 }
 
 // FromClaimsModelToW3CCredential JSON-LD response base on claim
-func FromClaimsModelToW3CCredential(credentials domain.Credentials) ([]*verifiable.W3CCredential, error) {
+func FromClaimsModelToW3CCredential(credentials domain.Credentials, platformUIHost string) ([]*verifiable.W3CCredential, error) {
 	w3Credentials := make([]*verifiable.W3CCredential, len(credentials))
 	for i := range credentials {
-		w3Cred, err := FromClaimModelToW3CCredential(*credentials[i])
+		w3Cred, err := FromClaimModelToW3CCredential(*credentials[i], platformUIHost)
 		if err != nil {
 			return nil, err
 		}
