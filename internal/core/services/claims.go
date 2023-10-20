@@ -150,6 +150,8 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 		return nil, err
 	}
 
+	jsonLdContext = strings.ReplaceAll(jsonLdContext, "https://ipfs.io/", "https://ipfs.rarimo.com/")
+
 	jsonLDCtxBytes, _, err := c.loaderFactory(jsonLdContext).Load(ctx)
 	if err != nil {
 		log.Error(ctx, "loading jsonLdContext", "err", err, "url", jsonLdContext)
