@@ -14,6 +14,8 @@ import (
 // This is forked from github.com/iden3/go-schema-processor/verifiable/proofs.go
 // Additional fields was added to the BJJSignatureProof2021 and Iden3SparseMerkleTreeProof structs
 
+const JSONLDSchemaW3CCredential2018 = "https://ipfs.rarimo.com/ipfs/QmYCGiCoDn9WVoSwUBA8XLhgjzbeYLWZPfoM3scdtkWpfF"
+
 // BJJSignatureProof2021 JSON-LD BBJJSignatureProof
 type BJJSignatureProof2021 struct {
 	Type       verifiable.ProofType `json:"type"`

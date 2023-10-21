@@ -636,7 +636,7 @@ func (c *claim) guardCreateClaimRequest(req *ports.CreateClaimRequest) error {
 }
 
 func (c *claim) newVerifiableCredential(claimReq *ports.CreateClaimRequest, vcID uuid.UUID, jsonLdContext string, nonce uint64) (verifiable.W3CCredential, error) {
-	credentialCtx := []string{verifiable.JSONLDSchemaW3CCredential2018, verifiable.JSONLDSchemaIden3Credential, jsonLdContext}
+	credentialCtx := []string{common.JSONLDSchemaW3CCredential2018, verifiable.JSONLDSchemaIden3Credential, jsonLdContext}
 	credentialType := []string{verifiable.TypeW3CVerifiableCredential, claimReq.Type}
 
 	credentialSubject := claimReq.CredentialSubject

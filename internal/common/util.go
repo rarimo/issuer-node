@@ -36,7 +36,7 @@ func CreateCredential(issuer *core.DID, req CredentialRequest, schema jsonSuite.
 	if !ok {
 		return verifiable.W3CCredential{}, fmt.Errorf("invalid jsonLdContext, expected string")
 	}
-	credentialCtx := []string{verifiable.JSONLDSchemaW3CCredential2018, verifiable.JSONLDSchemaIden3Credential, jsonLdContext}
+	credentialCtx := []string{JSONLDSchemaW3CCredential2018, verifiable.JSONLDSchemaIden3Credential, jsonLdContext}
 
 	credentialType := []string{verifiable.TypeW3CVerifiableCredential, req.Type}
 
