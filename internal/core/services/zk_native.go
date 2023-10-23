@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	"github.com/iden3/go-circuits"
 	"github.com/iden3/go-rapidsnark/prover"
-	"github.com/iden3/go-rapidsnark/witness"
-
+	"github.com/iden3/go-rapidsnark/witness/v2"
+	"github.com/iden3/go-rapidsnark/witness/wazero"
 	"github.com/polygonid/sh-id-platform/internal/core/domain"
 	"github.com/polygonid/sh-id-platform/internal/log"
 	"github.com/polygonid/sh-id-platform/pkg/loaders"
@@ -36,7 +35,7 @@ func (s *NativeProverService) Generate(ctx context.Context, inputs json.RawMessa
 		return nil, err
 	}
 
-	calc, err := witness.NewCircom2WitnessCalculator(wasm, true)
+	calc, err := witness.NewCalculator(wasm, witness.WithWasmEngine(wazero.NewCircom2WZWitnessCalculator))
 	if err != nil {
 		log.Error(ctx, "can't create witness calculator", "err", err)
 		return nil, fmt.Errorf("can't create witness calculator: %w", err)
