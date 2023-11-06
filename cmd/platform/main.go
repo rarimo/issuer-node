@@ -112,7 +112,6 @@ func main() {
 	merkleTreeRootsRepository := repositories.NewMerkleTreeNodesRepository()
 	identityStateRepository := repositories.NewIdentityState()
 	revocationRepository := repositories.NewRevocation()
-	usersRepository := repositories.NewUsers()
 
 	// services initialization
 	mtService := services.NewIdentityMerkleTrees(mtRepository, merkleTreeRootsRepository)
@@ -141,7 +140,6 @@ func main() {
 		log.Error(ctx, "error creating transaction service", "err", err)
 		return
 	}
-	usersService := services.NewUsers(usersRepository, storage)
 
 	publisherGateway, err := gateways.NewPublisherEthGateway(ethereumClient, common.HexToAddress(cfg.Ethereum.ContractAddress), keyStore, cfg.PublishingKeyPath)
 	if err != nil {
@@ -175,7 +173,7 @@ func main() {
 	)
 	api.HandlerFromMux(
 		api.NewStrictHandlerWithOptions(
-			api.NewServer(cfg, identityService, claimsService, usersService, publisher, packageManager, serverHealth),
+			api.NewServer(cfg, identityService, claimsService, publisher, packageManager, serverHealth),
 			middlewares(ctx, cfg.HTTPBasicAuth),
 			api.StrictHTTPServerOptions{
 				RequestErrorHandlerFunc:  errors.RequestErrorHandlerFunc,

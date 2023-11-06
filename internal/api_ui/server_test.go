@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
 	core "github.com/iden3/go-iden3-core"
 	"github.com/iden3/go-schema-processor/utils"
 	"github.com/mitchellh/mapstructure"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -42,7 +42,8 @@ func TestServer_CheckStatus(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -125,7 +126,8 @@ func TestServer_AuthQRCode(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -639,7 +641,8 @@ func TestServer_DeleteConnection(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -891,7 +894,8 @@ func TestServer_RevokeConnectionCredentials(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -1005,7 +1009,8 @@ func TestServer_CreateCredential(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -1185,7 +1190,8 @@ func TestServer_DeleteCredential(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -1291,7 +1297,8 @@ func TestServer_GetCredential(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -1485,7 +1492,8 @@ func TestServer_GetCredentials(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	schemaRepository := repositories.NewSchema(*storage)
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
@@ -1766,7 +1774,8 @@ func TestServer_GetCredentialQrCode(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -1881,7 +1890,8 @@ func TestServer_GetConnection(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -2069,7 +2079,8 @@ func TestServer_GetConnections(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -2525,7 +2536,8 @@ func TestServer_RevokeCredential(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -2665,7 +2677,8 @@ func TestServer_CreateLink(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -2723,7 +2736,7 @@ func TestServer_CreateLink(t *testing.T) {
 			body: CreateLinkRequest{
 				SchemaID:             importedSchema.ID,
 				Expiration:           common.ToPointer(time.Date(2025, 8, 15, 14, 30, 45, 100, time.Local)),
-				CredentialExpiration: &types.Date{Time: time.Date(2023, 8, 15, 14, 30, 45, 100, time.Local)},
+				CredentialExpiration: &openapi_types.Date{Time: time.Date(2023, 8, 15, 14, 30, 45, 100, time.Local)},
 				LimitedClaims:        common.ToPointer(10),
 				CredentialSubject:    CredentialSubject{"birthday": 19790911, "documentType": 12},
 				MtProof:              true,
@@ -2740,7 +2753,7 @@ func TestServer_CreateLink(t *testing.T) {
 			body: CreateLinkRequest{
 				SchemaID:             importedSchema.ID,
 				Expiration:           common.ToPointer(time.Date(2025, 8, 15, 14, 30, 45, 100, time.Local)),
-				CredentialExpiration: &types.Date{Time: time.Date(2023, 8, 15, 14, 30, 45, 100, time.Local)},
+				CredentialExpiration: &openapi_types.Date{Time: time.Date(2023, 8, 15, 14, 30, 45, 100, time.Local)},
 				LimitedClaims:        common.ToPointer(10),
 				CredentialSubject:    CredentialSubject{"birthday": 19790911, "documentType": 12},
 				MtProof:              false,
@@ -2757,7 +2770,7 @@ func TestServer_CreateLink(t *testing.T) {
 			body: CreateLinkRequest{
 				SchemaID:             importedSchema.ID,
 				Expiration:           common.ToPointer(time.Date(2000, 8, 15, 14, 30, 45, 100, time.Local)),
-				CredentialExpiration: &types.Date{Time: time.Date(2025, 8, 15, 14, 30, 45, 100, time.Local)},
+				CredentialExpiration: &openapi_types.Date{Time: time.Date(2025, 8, 15, 14, 30, 45, 100, time.Local)},
 				LimitedClaims:        common.ToPointer(10),
 				CredentialSubject:    CredentialSubject{"birthday": 19790911, "documentType": 12},
 				MtProof:              true,
@@ -2808,7 +2821,7 @@ func TestServer_CreateLink(t *testing.T) {
 			body: CreateLinkRequest{
 				SchemaID:             importedSchema.ID,
 				Expiration:           common.ToPointer(time.Date(2025, 8, 15, 14, 30, 45, 100, time.Local)),
-				CredentialExpiration: &types.Date{Time: time.Date(2000, 8, 15, 14, 30, 45, 100, time.Local)},
+				CredentialExpiration: &openapi_types.Date{Time: time.Date(2000, 8, 15, 14, 30, 45, 100, time.Local)},
 				LimitedClaims:        common.ToPointer(10),
 				CredentialSubject:    CredentialSubject{},
 				MtProof:              true,
@@ -2825,7 +2838,7 @@ func TestServer_CreateLink(t *testing.T) {
 			body: CreateLinkRequest{
 				SchemaID:             importedSchema.ID,
 				Expiration:           common.ToPointer(time.Date(2025, 8, 15, 14, 30, 45, 100, time.Local)),
-				CredentialExpiration: &types.Date{Time: time.Date(2000, 8, 15, 14, 30, 45, 100, time.Local)},
+				CredentialExpiration: &openapi_types.Date{Time: time.Date(2000, 8, 15, 14, 30, 45, 100, time.Local)},
 				LimitedClaims:        common.ToPointer(10),
 				CredentialSubject:    CredentialSubject{"birthday": 19790911, "documentType": true},
 				MtProof:              true,
@@ -2842,7 +2855,7 @@ func TestServer_CreateLink(t *testing.T) {
 			body: CreateLinkRequest{
 				SchemaID:             uuid.New(),
 				Expiration:           common.ToPointer(time.Date(2025, 8, 15, 14, 30, 45, 100, time.Local)),
-				CredentialExpiration: &types.Date{Time: time.Date(2000, 8, 15, 14, 30, 45, 100, time.Local)},
+				CredentialExpiration: &openapi_types.Date{Time: time.Date(2000, 8, 15, 14, 30, 45, 100, time.Local)},
 				LimitedClaims:        common.ToPointer(10),
 				CredentialSubject:    CredentialSubject{"birthday": 19790911, "documentType": 12},
 				MtProof:              true,
@@ -2894,7 +2907,8 @@ func TestServer_ActivateLink(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -3046,7 +3060,8 @@ func TestServer_GetLink(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -3218,7 +3233,8 @@ func TestServer_GetAllLinks(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -3435,7 +3451,8 @@ func TestServer_DeleteLink(t *testing.T) {
 	schemaRepository := repositories.NewSchema(*storage)
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -3552,7 +3569,8 @@ func TestServer_DeleteLinkForDifferentDID(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -3667,7 +3685,8 @@ func TestServer_CreateLinkQRCode(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -3803,7 +3822,8 @@ func TestServer_GetLinkQRCode(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -3978,7 +3998,8 @@ func TestServer_GetStateStatus(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -4085,7 +4106,8 @@ func TestServer_GetStateTransactions(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -4174,7 +4196,8 @@ func TestServer_GetRevocationStatus(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
