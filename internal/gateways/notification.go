@@ -7,10 +7,10 @@ import (
 	"github.com/iden3/go-schema-processor/verifiable"
 	"github.com/pkg/errors"
 
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/pkg/http"
-	"github.com/polygonid/sh-id-platform/pkg/notifications"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/pkg/http"
+	"github.com/rarimo/issuer-node/pkg/notifications"
 )
 
 // ErrNoDeviceInfoInPushService is an error when push service in did document doesn't contain device metadata

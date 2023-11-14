@@ -14,8 +14,8 @@ import (
 	core "github.com/iden3/go-iden3-core"
 	"github.com/spf13/viper"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/log"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/log"
 )
 
 const (

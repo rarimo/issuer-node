@@ -4,9 +4,9 @@ import (
 	"context"
 	"os"
 
-	"github.com/polygonid/sh-id-platform/internal/config"
-	"github.com/polygonid/sh-id-platform/internal/db/schema"
-	"github.com/polygonid/sh-id-platform/internal/log"
+	"github.com/rarimo/issuer-node/internal/config"
+	"github.com/rarimo/issuer-node/internal/db/schema"
+	"github.com/rarimo/issuer-node/internal/log"
 
 	_ "github.com/lib/pq"
 )

@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 	core "github.com/iden3/go-iden3-core"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/db"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/db"
 )
 
 type users struct {

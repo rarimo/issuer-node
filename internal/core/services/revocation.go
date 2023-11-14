@@ -17,9 +17,9 @@ import (
 	"github.com/iden3/go-schema-processor/verifiable"
 	proof "github.com/iden3/merkletree-proof"
 
-	"github.com/polygonid/sh-id-platform/internal/log"
-	client "github.com/polygonid/sh-id-platform/pkg/http"
-	"github.com/polygonid/sh-id-platform/pkg/protocol"
+	"github.com/rarimo/issuer-node/internal/log"
+	client "github.com/rarimo/issuer-node/pkg/http"
+	"github.com/rarimo/issuer-node/pkg/protocol"
 )
 
 const (

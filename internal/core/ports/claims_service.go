@@ -14,8 +14,8 @@ import (
 	comm "github.com/iden3/iden3comm"
 	"github.com/iden3/iden3comm/protocol"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
 )
 
 // CreateClaimRequest struct

@@ -3,8 +3,8 @@ package repositories
 import (
 	"context"
 	"fmt"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/db"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/db"
 )
 
 type merkleTreeNodesRepository struct{}

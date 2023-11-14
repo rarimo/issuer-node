@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 
-	apiErrors "github.com/polygonid/sh-id-platform/internal/errors"
-	"github.com/polygonid/sh-id-platform/internal/log"
+	apiErrors "github.com/rarimo/issuer-node/internal/errors"
+	"github.com/rarimo/issuer-node/internal/log"
 )
 
 // ReqReq is used to pass http.Request to the websocket subscription func

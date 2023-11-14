@@ -2,7 +2,7 @@ package ports
 
 import (
 	"context"
-	"github.com/polygonid/sh-id-platform/internal/db"
+	"github.com/rarimo/issuer-node/internal/db"
 )
 
 type MerkleTreeNodesRepository interface {

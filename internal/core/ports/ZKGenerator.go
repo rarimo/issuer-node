@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/domain"
 )
 
 // ZKGenerator interface

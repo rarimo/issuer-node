@@ -5,7 +5,7 @@ import (
 
 	"github.com/iden3/iden3comm/protocol"
 
-	link_state "github.com/polygonid/sh-id-platform/pkg/link"
+	link_state "github.com/rarimo/issuer-node/pkg/link"
 )
 
 // SessionRepository defines the interface for managing sessions

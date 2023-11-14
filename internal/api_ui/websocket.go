@@ -4,9 +4,9 @@ import (
 	"context"
 	"github.com/gorilla/websocket"
 	core "github.com/iden3/go-iden3-core"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/log"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/log"
 	"net/http"
 	"time"
 )

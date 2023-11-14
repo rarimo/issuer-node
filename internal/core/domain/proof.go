@@ -5,7 +5,7 @@ import (
 
 	"github.com/iden3/go-schema-processor/verifiable"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
+	"github.com/rarimo/issuer-node/internal/common"
 )
 
 const AnyProofType verifiable.ProofType = "AnyProof" // AnyProofType defines any proof type

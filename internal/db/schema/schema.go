@@ -8,7 +8,7 @@ import (
 
 	"github.com/pressly/goose/v3"
 
-	"github.com/polygonid/sh-id-platform/internal/log"
+	"github.com/rarimo/issuer-node/internal/log"
 )
 
 //go:embed migrations/*.sql

@@ -22,17 +22,17 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/event"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/db"
-	"github.com/polygonid/sh-id-platform/internal/loader"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/internal/repositories"
-	"github.com/polygonid/sh-id-platform/pkg/pubsub"
-	"github.com/polygonid/sh-id-platform/pkg/rand"
-	schemaPkg "github.com/polygonid/sh-id-platform/pkg/schema"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/event"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/db"
+	"github.com/rarimo/issuer-node/internal/loader"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/pubsub"
+	"github.com/rarimo/issuer-node/pkg/rand"
+	schemaPkg "github.com/rarimo/issuer-node/pkg/schema"
 )
 
 var (
@@ -651,11 +651,11 @@ func (c *claim) newVerifiableCredential(claimReq *ports.CreateClaimRequest, vcID
 
 	credentialSubject["type"] = claimReq.Type
 
-	cs := c.getRevocationSource(claimReq.DID.String(), nonce, claimReq.SingleIssuer) // TODO
+	cs := c.getRevocationSource(claimReq.DID.String(), nonce, claimReq.SingleIssuer)
 
 	issuanceDate := time.Now()
 	return verifiable.W3CCredential{
-		ID:                c.buildCredentialID(*claimReq.DID, vcID, claimReq.SingleIssuer), // TODO
+		ID:                c.buildCredentialID(*claimReq.DID, vcID, claimReq.SingleIssuer),
 		Context:           credentialCtx,
 		Type:              credentialType,
 		Expiration:        claimReq.Expiration,
@@ -673,18 +673,18 @@ func (c *claim) newVerifiableCredential(claimReq *ports.CreateClaimRequest, vcID
 func (c *claim) getRevocationSource(issuerDID string, nonce uint64, singleIssuer bool) interface{} {
 	if c.cfg.RHSEnabled {
 		return &verifiable.RHSCredentialStatus{
-			ID:              fmt.Sprintf("%s/node", strings.TrimSuffix(c.cfg.RHSUrl, "/")), // TODO
+			ID:              fmt.Sprintf("%s/node", strings.TrimSuffix(c.cfg.RHSUrl, "/")),
 			Type:            verifiable.Iden3ReverseSparseMerkleTreeProof,
 			RevocationNonce: nonce,
 			StatusIssuer: &verifiable.CredentialStatus{
-				ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer), // TODO
+				ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
 				Type:            verifiable.SparseMerkleTreeProof,
 				RevocationNonce: nonce,
 			},
 		}
 	}
 	return &verifiable.CredentialStatus{
-		ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer), // TODO
+		ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
 		Type:            verifiable.SparseMerkleTreeProof,
 		RevocationNonce: nonce,
 	}

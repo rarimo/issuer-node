@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/polygonid/sh-id-platform/internal/log"
+	"github.com/rarimo/issuer-node/internal/log"
 	"strings"
 
 	core "github.com/iden3/go-iden3-core"
@@ -14,9 +14,9 @@ import (
 	"github.com/iden3/go-schema-processor/verifiable"
 	"github.com/jackc/pgtype"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/loader"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/loader"
 )
 
 var (
@@ -58,7 +58,7 @@ func FromClaimModelToW3CCredential(claim domain.Claim, platformUIHost string) (*
 			return nil, err
 		}
 
-		ep := strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1] // TODO remove
+		ep := strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1] // FIXME
 		signatureProof.IssuerData.UpdateURL = platformUIHost + "/v1/" + ep
 
 		proofs = append(proofs, signatureProof)
@@ -72,11 +72,13 @@ func FromClaimModelToW3CCredential(claim domain.Claim, platformUIHost string) (*
 			return nil, err
 		}
 
-		ep := strings.Split(mtpProof.ID, "/v1/")[1]
-		mtpProof.ID = platformUIHost + "/v1/" + ep
+		if mtpProof != nil {
+			ep := strings.Split(mtpProof.ID, "/v1/")[1]
+			mtpProof.ID = platformUIHost + "/v1/" + ep
 
-		ep = strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1] // TODO remove
-		mtpProof.IssuerData.UpdateURL = platformUIHost + "/v1/" + ep
+			ep = strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1] // FIXME
+			mtpProof.IssuerData.UpdateURL = platformUIHost + "/v1/" + ep
+		}
 
 		proofs = append(proofs, mtpProof)
 

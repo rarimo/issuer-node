@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/pkg/cache"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/pkg/cache"
 )
 
 type schemaData struct {

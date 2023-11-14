@@ -10,8 +10,8 @@ import (
 	core "github.com/iden3/go-iden3-core"
 	"github.com/iden3/iden3comm/protocol"
 
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	linkState "github.com/polygonid/sh-id-platform/pkg/link"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	linkState "github.com/rarimo/issuer-node/pkg/link"
 )
 
 // CreateQRCodeResponse - is the result of creating a link QRcode.

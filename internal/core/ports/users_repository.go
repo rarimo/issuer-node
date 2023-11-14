@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 	core "github.com/iden3/go-iden3-core"
-	"github.com/polygonid/sh-id-platform/internal/db"
+	"github.com/rarimo/issuer-node/internal/db"
 )
 
 type UsersRepository interface {
