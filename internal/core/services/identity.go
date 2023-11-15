@@ -24,19 +24,19 @@ import (
 	"github.com/iden3/iden3comm/protocol"
 	"github.com/jackc/pgx/v4"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/event"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/db"
-	"github.com/polygonid/sh-id-platform/internal/kms"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/pkg/credentials/signature/circuit/signer"
-	"github.com/polygonid/sh-id-platform/pkg/credentials/signature/suite"
-	"github.com/polygonid/sh-id-platform/pkg/credentials/signature/suite/babyjubjub"
-	"github.com/polygonid/sh-id-platform/pkg/primitive"
-	"github.com/polygonid/sh-id-platform/pkg/pubsub"
-	"github.com/polygonid/sh-id-platform/pkg/reverse_hash"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/event"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/db"
+	"github.com/rarimo/issuer-node/internal/kms"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/pkg/credentials/signature/circuit/signer"
+	"github.com/rarimo/issuer-node/pkg/credentials/signature/suite"
+	"github.com/rarimo/issuer-node/pkg/credentials/signature/suite/babyjubjub"
+	"github.com/rarimo/issuer-node/pkg/primitive"
+	"github.com/rarimo/issuer-node/pkg/pubsub"
+	"github.com/rarimo/issuer-node/pkg/reverse_hash"
 )
 
 const (
@@ -121,7 +121,7 @@ func (i *identity) Create(ctx context.Context, DIDMethod string, blockchain, net
 	return identityDB, nil
 }
 
-func (i *identity) SignClaimEntry(ctx context.Context, authClaim *domain.Claim, claimEntry *core.Claim) (*verifiable.BJJSignatureProof2021, error) {
+func (i *identity) SignClaimEntry(ctx context.Context, authClaim *domain.Claim, claimEntry *core.Claim) (*common.BJJSignatureProof2021, error) {
 	keyID, err := i.getKeyIDFromAuthClaim(ctx, authClaim)
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (i *identity) SignClaimEntry(ctx context.Context, authClaim *domain.Claim, 
 
 	circuitSigner := signer.New(bbjSuite)
 
-	var issuerMTP verifiable.Iden3SparseMerkleTreeProof
+	var issuerMTP common.Iden3SparseMerkleTreeProof
 	err = authClaim.MTPProof.AssignTo(&issuerMTP)
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (i *identity) SignClaimEntry(ctx context.Context, authClaim *domain.Claim, 
 	}
 
 	// followed https://w3c-ccg.github.io/ld-proofs/
-	var proof verifiable.BJJSignatureProof2021
+	var proof common.BJJSignatureProof2021
 	proof.Type = babyjubjub.SignatureType
 	proof.Signature = hex.EncodeToString(signtureBytes)
 	issuerMTP.IssuerData.AuthCoreClaim, err = authClaim.CoreClaim.Get().Hex()
@@ -237,6 +237,17 @@ func (i *identity) GetLatestStateByID(ctx context.Context, identifier core.DID) 
 	if state == nil {
 		return nil, fmt.Errorf("state is not found for identifier: %s",
 			identifier.String())
+	}
+	return state, nil
+}
+
+func (i *identity) GetStateByHash(ctx context.Context, hash string) (*domain.IdentityState, error) {
+	state, err := i.identityStateRepository.GetStateByHash(ctx, i.storage.Pgx, hash)
+	if err != nil {
+		return nil, err
+	}
+	if state == nil {
+		return nil, fmt.Errorf("state is not found for hash: %s", hash)
 	}
 	return state, nil
 }
@@ -663,7 +674,9 @@ func (i *identity) createIdentity(ctx context.Context, tx db.Querier, DIDMethod 
 		return nil, nil, fmt.Errorf("can't create authClaimModel: %w", err)
 	}
 
-	mtpProof, err := i.getAuthClaimMtpProof(ctx, claimsTree, currentState, authClaim, did)
+	authClaimModel.ID = claimID
+
+	mtpProof, err := i.getAuthClaimMtpProof(ctx, claimsTree, currentState, authClaim, did, hostURL, claimID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't add get current state from merkle tree: %w", err)
 	}
@@ -712,28 +725,29 @@ func (i *identity) createIdentity(ctx context.Context, tx db.Querier, DIDMethod 
 	return did, currentState.BigInt(), nil
 }
 
-func (i *identity) getAuthClaimMtpProof(ctx context.Context, claimsTree *merkletree.MerkleTree, currentState *merkletree.Hash, authClaim *core.Claim, did *core.DID) (verifiable.Iden3SparseMerkleTreeProof, error) {
+func (i *identity) getAuthClaimMtpProof(ctx context.Context, claimsTree *merkletree.MerkleTree, currentState *merkletree.Hash, authClaim *core.Claim, did *core.DID, hostURL string, claimID uuid.UUID) (common.Iden3SparseMerkleTreeProof, error) {
 	index, err := authClaim.HIndex()
 	if err != nil {
-		return verifiable.Iden3SparseMerkleTreeProof{}, err
+		return common.Iden3SparseMerkleTreeProof{}, err
 	}
 
 	proof, _, err := claimsTree.GenerateProof(ctx, index, nil)
 	if err != nil {
-		return verifiable.Iden3SparseMerkleTreeProof{}, err
+		return common.Iden3SparseMerkleTreeProof{}, err
 	}
 
 	authClaimHex, err := authClaim.Hex()
 	if err != nil {
-		return verifiable.Iden3SparseMerkleTreeProof{}, fmt.Errorf("auth claim core hex error: %w", err)
+		return common.Iden3SparseMerkleTreeProof{}, fmt.Errorf("auth claim core hex error: %w", err)
 	}
 
 	stateHex := currentState.Hex()
 	cltHex := claimsTree.Root().Hex()
-	mtpProof := verifiable.Iden3SparseMerkleTreeProof{
+	mtpProof := common.Iden3SparseMerkleTreeProof{
 		Type: verifiable.Iden3SparseMerkleTreeProofType,
-		IssuerData: verifiable.IssuerData{
+		IssuerData: common.IssuerData{
 			ID:            did.String(),
+			UpdateURL:     buildMTProofURL(hostURL, claimID),
 			AuthCoreClaim: authClaimHex,
 			State: verifiable.State{
 				ClaimsTreeRoot: &cltHex,
@@ -834,4 +848,8 @@ func newDIDDocument(serverURL string, issuerDID core.DID) verifiable.DIDDocument
 func sanitizeIssuerDoc(issDoc []byte) []byte {
 	str := strings.Replace(string(issDoc), "\\u0000", "", -1)
 	return []byte(str)
+}
+
+func buildMTProofURL(hostURL string, credID uuid.UUID) string {
+	return fmt.Sprintf("%s/v1/claims/%s/mtp", hostURL, credID.String())
 }

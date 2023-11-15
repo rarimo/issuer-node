@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
 
-	"github.com/polygonid/sh-id-platform/internal/log"
+	"github.com/rarimo/issuer-node/internal/log"
 )
 
 // DefaultHTTPClientWithRetry http client with retry behavior.

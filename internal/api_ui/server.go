@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/iden3/go-merkletree-sql/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,17 +16,17 @@ import (
 	"github.com/iden3/iden3comm"
 	"github.com/iden3/iden3comm/packers"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/config"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/core/services"
-	"github.com/polygonid/sh-id-platform/internal/gateways"
-	"github.com/polygonid/sh-id-platform/internal/health"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/internal/repositories"
-	link_state "github.com/polygonid/sh-id-platform/pkg/link"
-	"github.com/polygonid/sh-id-platform/pkg/schema"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/config"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/core/services"
+	"github.com/rarimo/issuer-node/internal/gateways"
+	"github.com/rarimo/issuer-node/internal/health"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/repositories"
+	link_state "github.com/rarimo/issuer-node/pkg/link"
+	"github.com/rarimo/issuer-node/pkg/schema"
 )
 
 // Server implements StrictServerInterface and holds the implementation of all API controllers
@@ -192,7 +193,7 @@ func (s *Server) GetConnection(ctx context.Context, request GetConnectionRequest
 		return GetConnection500JSONResponse{N500JSONResponse{"There was an error retrieving the connection"}}, nil
 	}
 
-	w3credentials, err := schema.FromClaimsModelToW3CCredential(credentials)
+	w3credentials, err := schema.FromClaimsModelToW3CCredential(credentials, s.cfg.APIUI.ServerURL)
 	if err != nil {
 		log.Debug(ctx, "get connection internal server error converting credentials to w3c", "err", err, "req", request)
 		return GetConnection500JSONResponse{N500JSONResponse{"There was an error parsing the credential of the given connection"}}, nil
@@ -210,7 +211,7 @@ func (s *Server) GetConnections(ctx context.Context, request GetConnectionsReque
 		return GetConnections500JSONResponse{N500JSONResponse{"Unexpected error while retrieving connections"}}, nil
 	}
 
-	resp, err := connectionsResponse(conns)
+	resp, err := connectionsResponse(conns, s.cfg.APIUI.ServerURL)
 	if err != nil {
 		log.Error(ctx, "get connection request invalid claim format", "err", err)
 		return GetConnections500JSONResponse{N500JSONResponse{"Unexpected error while retrieving connections"}}, nil
@@ -265,7 +266,7 @@ func (s *Server) GetCredential(ctx context.Context, request GetCredentialRequest
 		return GetCredential500JSONResponse{N500JSONResponse{"There was an error trying to retrieve the credential information"}}, nil
 	}
 
-	w3c, err := schema.FromClaimModelToW3CCredential(*credential)
+	w3c, err := schema.FromClaimModelToW3CCredential(*credential, s.cfg.APIUI.ServerURL)
 	if err != nil {
 		return GetCredential500JSONResponse{N500JSONResponse{"Invalid claim format"}}, nil
 	}
@@ -275,7 +276,7 @@ func (s *Server) GetCredential(ctx context.Context, request GetCredentialRequest
 
 // GetCredentials returns a collection of credentials that matches the request.
 func (s *Server) GetCredentials(ctx context.Context, request GetCredentialsRequestObject) (GetCredentialsResponseObject, error) {
-	filter, err := getCredentialsFilter(ctx, request.Params.Did, request.Params.Status, request.Params.Query)
+	filter, err := getCredentialsFilter(ctx, request.Params.Did, request.Params.Status, nil, request.Params.Query)
 	if err != nil {
 		return GetCredentials400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
 	}
@@ -286,7 +287,7 @@ func (s *Server) GetCredentials(ctx context.Context, request GetCredentialsReque
 	}
 	response := make([]Credential, len(credentials))
 	for i, credential := range credentials {
-		w3c, err := schema.FromClaimModelToW3CCredential(*credential)
+		w3c, err := schema.FromClaimModelToW3CCredential(*credential, s.cfg.APIUI.ServerURL)
 		if err != nil {
 			log.Error(ctx, "creating credentials response", "err", err, "req", request)
 			return GetCredentials500JSONResponse{N500JSONResponse{"Invalid claim format"}}, nil
@@ -294,6 +295,107 @@ func (s *Server) GetCredentials(ctx context.Context, request GetCredentialsReque
 		response[i] = credentialResponse(w3c, credential)
 	}
 	return GetCredentials200JSONResponse(response), nil
+}
+
+func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject) (ClaimOfferResponseObject, error) {
+	filter, err := getCredentialsFilter(ctx, &request.UserId, nil, &request.ClaimType, nil)
+	if err != nil {
+		return ClaimOffer400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
+	}
+
+	claims, err := s.claimService.GetAll(ctx, s.cfg.APIUI.IssuerDID, filter)
+	if err != nil {
+		log.Error(ctx, "loading credentials", "err", err, "req", request)
+		return ClaimOffer500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
+	}
+	if len(claims) == 0 {
+		return ClaimOffer404JSONResponse{N404JSONResponse{"claim not found"}}, nil
+	}
+
+	claim := new(domain.Claim)
+	for _, claimToProcess := range claims {
+		if claimToProcess.IdentityState != nil {
+			claim = claimToProcess
+		}
+	}
+
+	if claim.IdentityState == nil {
+		return ClaimOffer404JSONResponse{N404JSONResponse{"claim not found"}}, nil
+	}
+
+	return ClaimOffer200JSONResponse(getCredentialQrCodeResponse(claim, s.cfg.APIUI.ServerURL)), nil
+}
+
+func (s *Server) GetClaimMTP(ctx context.Context, request GetClaimMTPRequestObject) (GetClaimMTPResponseObject, error) {
+	if request.Id.String() == "" {
+		return GetClaimMTP400JSONResponse{N400JSONResponse{"cannot proceed with an empty claim id"}}, nil
+	}
+
+	claim, err := s.claimService.GetBySingleID(ctx, request.Id)
+	if err != nil {
+		if errors.Is(err, services.ErrClaimNotFound) {
+			return GetClaimMTP404JSONResponse{N404JSONResponse{err.Error()}}, nil
+		}
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	state := new(domain.IdentityState)
+	if request.Params.StateHash == nil {
+		issuerDID, err := core.ParseDID(claim.Issuer)
+		if err != nil {
+			log.Error(ctx, "failed to parse DID", err)
+			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+		}
+		state, err = s.identityService.GetLatestStateByID(context.Background(), *issuerDID)
+		if err != nil {
+			log.Error(ctx, "failed to get latest state by ID", err)
+			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+		}
+	} else {
+		state, err = s.identityService.GetStateByHash(ctx, *request.Params.StateHash)
+		if err != nil {
+			log.Error(ctx, "failed to get state by hash", err)
+			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+		}
+	}
+
+	leaf, err := claim.CoreClaim.Get().HIndex()
+	if err != nil {
+		log.Error(ctx, "failed to get HIndex", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	root, err := merkletree.NewHashFromHex(*state.ClaimsTreeRoot)
+	if err != nil {
+		log.Error(ctx, "failed to get new hash from hex", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	mtID, err := s.claimService.GetMTIDByKey(ctx, *state.ClaimsTreeRoot)
+	if err != nil {
+		log.Error(ctx, "failed to get MT proof", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	proof, err := s.claimService.GetMTProof(ctx, leaf, root, mtID)
+	if err != nil {
+		log.Error(ctx, "failed to get MT proof", err)
+		return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil
+	}
+
+	return toGetClaimMTP200JSONResponse(state, proof), nil
+}
+
+func (s *Server) SubscribeToClaimWebsocket(ctx context.Context, request SubscribeToClaimWebsocketRequestObject) (SubscribeToClaimWebsocketResponseObject, error) {
+	resp := WebsocketResponse{
+		ctx:             ctx,
+		request:         request,
+		issuerDID:       s.cfg.APIUI.IssuerDID,
+		hostURL:         s.cfg.APIUI.ServerURL,
+		claimService:    s.claimService,
+		identityService: s.identityService,
+	}
+	return resp, nil
 }
 
 // DeleteCredential deletes a credential
@@ -366,7 +468,12 @@ func (s *Server) RevokeCredential(ctx context.Context, request RevokeCredentialR
 
 // GetRevocationStatus - returns weather a credential is revoked or not, this endpoint must be public available
 func (s *Server) GetRevocationStatus(ctx context.Context, request GetRevocationStatusRequestObject) (GetRevocationStatusResponseObject, error) {
-	rs, err := s.claimService.GetRevocationStatus(ctx, s.cfg.APIUI.IssuerDID, uint64(request.Nonce))
+	stateHash := ""
+	if request.Params.StateHash != nil {
+		stateHash = *request.Params.StateHash
+	}
+
+	rs, err := s.claimService.GetRevocationStatus(ctx, s.cfg.APIUI.IssuerDID, uint64(request.Nonce), stateHash)
 	if err != nil {
 		return GetRevocationStatus500JSONResponse{N500JSONResponse{
 			Message: err.Error(),
@@ -654,11 +761,13 @@ func (s *Server) Agent(ctx context.Context, request AgentRequestObject) (AgentRe
 		log.Debug(ctx, "agent empty request")
 		return Agent400JSONResponse{N400JSONResponse{"cannot proceed with an empty request"}}, nil
 	}
+	log.Debug(ctx, "agent body", *request.Body)
 	basicMessage, err := s.packageManager.UnpackWithType(packers.MediaTypeZKPMessage, []byte(*request.Body))
 	if err != nil {
 		log.Debug(ctx, "agent bad request", "err", err, "body", *request.Body)
 		return Agent400JSONResponse{N400JSONResponse{"cannot proceed with the given request"}}, nil
 	}
+	log.Debug(ctx, "basic agent message", *basicMessage)
 
 	req, err := ports.NewAgentRequest(basicMessage)
 	if err != nil {
@@ -683,7 +792,7 @@ func (s *Server) Agent(ctx context.Context, request AgentRequestObject) (AgentRe
 	}, nil
 }
 
-func getCredentialsFilter(ctx context.Context, userDID *string, status *GetCredentialsParamsStatus, query *string) (*ports.ClaimsFilter, error) {
+func getCredentialsFilter(ctx context.Context, userDID *string, status *GetCredentialsParamsStatus, schemaType, query *string) (*ports.ClaimsFilter, error) {
 	filter := &ports.ClaimsFilter{}
 	if userDID != nil {
 		did, err := core.ParseDID(*userDID)
@@ -704,6 +813,9 @@ func getCredentialsFilter(ctx context.Context, userDID *string, status *GetCrede
 		default:
 			return nil, errors.New("wrong type value. Allowed values: [all, revoked, expired]")
 		}
+	}
+	if schemaType != nil {
+		filter.SchemaType = *schemaType
 	}
 	if query != nil {
 		filter.FTSQuery = *query
@@ -728,7 +840,7 @@ func documentation(w http.ResponseWriter, _ *http.Request) {
 }
 
 func favicon(w http.ResponseWriter, _ *http.Request) {
-	writeFile("api_ui/polygon.png", "image/png", w)
+	writeFile("api_ui/RA32.jpg", "image/jpeg", w)
 }
 
 func swagger(w http.ResponseWriter, _ *http.Request) {
@@ -744,4 +856,44 @@ func writeFile(path string, mimeType string, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", mimeType)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(f)
+}
+
+func toGetClaimMTP200JSONResponse(state *domain.IdentityState, proof *merkletree.Proof) *GetClaimMTP200JSONResponse {
+	response := GetClaimMTP200JSONResponse{
+		Issuer: struct {
+			ClaimsTreeRoot     *string `json:"claimsTreeRoot,omitempty"`
+			RevocationTreeRoot *string `json:"revocationTreeRoot,omitempty"`
+			RootOfRoots        *string `json:"rootOfRoots,omitempty"`
+			State              *string `json:"state,omitempty"`
+		}{
+			ClaimsTreeRoot:     state.ClaimsTreeRoot,
+			RevocationTreeRoot: state.RevocationTreeRoot,
+			RootOfRoots:        state.RootOfRoots,
+			State:              state.State,
+		},
+	}
+
+	response.Mtp.Existence = proof.Existence
+
+	if proof.NodeAux != nil {
+		key := proof.NodeAux.Key
+		decodedKey := key.BigInt().String()
+		value := proof.NodeAux.Value
+		decodedValue := value.BigInt().String()
+		response.Mtp.NodeAux = &struct {
+			Key   *string `json:"key,omitempty"`
+			Value *string `json:"value,omitempty"`
+		}{
+			Key:   &decodedKey,
+			Value: &decodedValue,
+		}
+	}
+
+	siblings := make([]string, 0)
+	for _, s := range proof.AllSiblings() {
+		siblings = append(siblings, s.BigInt().String())
+	}
+	response.Mtp.Siblings = &siblings
+
+	return &response
 }

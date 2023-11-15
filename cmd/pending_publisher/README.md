@@ -5,7 +5,7 @@ Onchain pending checker is a tool that runs in background and republishes pendin
 ## How to run it:
 
 It uses the same global configuration. Special values that can be of interest are all the blockchain configuration, 
-the database connection and OnChainCheckStatusFrecuency parameter.
+the database connection and OnChainCheckStatusFrequency parameter.
 
-OnChainCheckStatusFrecuency is the time between checks.
+OnChainCheckStatusFrequency is the time between checks.
 

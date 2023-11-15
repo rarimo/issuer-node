@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rarimo/issuer-node/internal/log"
+	"strings"
 
 	core "github.com/iden3/go-iden3-core"
 	jsonSuite "github.com/iden3/go-schema-processor/json"
@@ -12,8 +14,9 @@ import (
 	"github.com/iden3/go-schema-processor/verifiable"
 	"github.com/jackc/pgtype"
 
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/loader"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/loader"
 )
 
 var (
@@ -35,7 +38,7 @@ func LoadSchema(ctx context.Context, loader loader.Loader) (jsonSuite.Schema, er
 }
 
 // FromClaimModelToW3CCredential JSON-LD response base on claim
-func FromClaimModelToW3CCredential(claim domain.Claim) (*verifiable.W3CCredential, error) {
+func FromClaimModelToW3CCredential(claim domain.Claim, platformUIHost string) (*verifiable.W3CCredential, error) {
 	var cred verifiable.W3CCredential
 
 	err := json.Unmarshal(claim.Data.Bytes, &cred)
@@ -48,22 +51,35 @@ func FromClaimModelToW3CCredential(claim domain.Claim) (*verifiable.W3CCredentia
 
 	proofs := make(verifiable.CredentialProofs, 0)
 
-	var signatureProof *verifiable.BJJSignatureProof2021
+	var signatureProof *common.BJJSignatureProof2021
 	if claim.SignatureProof.Status != pgtype.Null {
 		err = claim.SignatureProof.AssignTo(&signatureProof)
 		if err != nil {
 			return nil, err
 		}
+
+		ep := strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1] // FIXME
+		signatureProof.IssuerData.UpdateURL = platformUIHost + "/v1/" + ep
+
 		proofs = append(proofs, signatureProof)
 	}
 
-	var mtpProof *verifiable.Iden3SparseMerkleTreeProof
+	var mtpProof *common.Iden3SparseMerkleTreeProof
 
 	if claim.MTPProof.Status != pgtype.Null {
 		err = claim.MTPProof.AssignTo(&mtpProof)
 		if err != nil {
 			return nil, err
 		}
+
+		if mtpProof != nil {
+			ep := strings.Split(mtpProof.ID, "/v1/")[1]
+			mtpProof.ID = platformUIHost + "/v1/" + ep
+
+			ep = strings.Split(signatureProof.IssuerData.UpdateURL, "/v1/")[1] // FIXME
+			mtpProof.IssuerData.UpdateURL = platformUIHost + "/v1/" + ep
+		}
+
 		proofs = append(proofs, mtpProof)
 
 	}
@@ -73,10 +89,10 @@ func FromClaimModelToW3CCredential(claim domain.Claim) (*verifiable.W3CCredentia
 }
 
 // FromClaimsModelToW3CCredential JSON-LD response base on claim
-func FromClaimsModelToW3CCredential(credentials domain.Credentials) ([]*verifiable.W3CCredential, error) {
+func FromClaimsModelToW3CCredential(credentials domain.Credentials, platformUIHost string) ([]*verifiable.W3CCredential, error) {
 	w3Credentials := make([]*verifiable.W3CCredential, len(credentials))
 	for i := range credentials {
-		w3Cred, err := FromClaimModelToW3CCredential(*credentials[i])
+		w3Cred, err := FromClaimModelToW3CCredential(*credentials[i], platformUIHost)
 		if err != nil {
 			return nil, err
 		}
@@ -115,6 +131,7 @@ func Process(ctx context.Context, ld loader.Loader, credentialType string, crede
 
 	claim, err := pr.ParseClaim(ctx, credential, credentialType, schema, options)
 	if err != nil {
+		log.Error(ctx, "failed to parse claim", "err", err)
 		return nil, ErrParseClaim
 	}
 	return claim, nil

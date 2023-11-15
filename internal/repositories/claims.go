@@ -16,10 +16,10 @@ import (
 	"github.com/labstack/gommon/log"
 	"github.com/lib/pq"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/db"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/db"
 )
 
 const duplicateViolationErrorCode = "23505"
@@ -380,6 +380,60 @@ func (c *claims) GetByIdAndIssuer(ctx context.Context, conn db.Querier, identifi
 					link_id
         FROM claims
         WHERE claims.identifier = $1 AND claims.id = $2`, identifier.String(), claimID).Scan(
+		&claim.ID,
+		&claim.Issuer,
+		&claim.SchemaHash,
+		&claim.SchemaType,
+		&claim.SchemaURL,
+		&claim.OtherIdentifier,
+		&claim.Expiration,
+		&claim.Updatable,
+		&claim.Version,
+		&claim.RevNonce,
+		&claim.SignatureProof,
+		&claim.MTPProof,
+		&claim.Data,
+		&claim.Identifier,
+		&claim.IdentityState,
+		&claim.CredentialStatus,
+		&claim.CoreClaim,
+		&claim.MtProof,
+		&claim.Revoked,
+		&claim.LinkID)
+
+	if err != nil && err == pgx.ErrNoRows {
+		return nil, ErrClaimDoesNotExist
+	}
+
+	return &claim, err
+}
+
+// GetById get claim by id
+func (c *claims) GetById(ctx context.Context, conn db.Querier, claimID uuid.UUID) (*domain.Claim, error) {
+	claim := domain.Claim{}
+	err := conn.QueryRow(ctx,
+		`SELECT id,
+       				issuer,
+       				schema_hash,
+       				schema_type,
+       				schema_url,
+       				other_identifier,
+       				expiration,
+       				updatable,
+       				version,
+        			rev_nonce,
+       				signature_proof,
+       				mtp_proof,
+       				data,
+       				claims.identifier,
+        			identity_state,
+       				credential_status,
+       				core_claim,
+					mtp,
+					revoked,
+					link_id
+        FROM claims
+        WHERE claims.id = $1`, claimID).Scan(
 		&claim.ID,
 		&claim.Issuer,
 		&claim.SchemaHash,

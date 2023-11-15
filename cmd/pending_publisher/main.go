@@ -2,35 +2,37 @@ package main
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/polygonid/sh-id-platform/internal/config"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/core/services"
-	"github.com/polygonid/sh-id-platform/internal/db"
-	"github.com/polygonid/sh-id-platform/internal/gateways"
-	"github.com/polygonid/sh-id-platform/internal/kms"
-	"github.com/polygonid/sh-id-platform/internal/loader"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/internal/providers"
-	"github.com/polygonid/sh-id-platform/internal/redis"
-	"github.com/polygonid/sh-id-platform/internal/repositories"
-	"github.com/polygonid/sh-id-platform/pkg/blockchain/eth"
-	"github.com/polygonid/sh-id-platform/pkg/cache"
-	"github.com/polygonid/sh-id-platform/pkg/loaders"
-	"github.com/polygonid/sh-id-platform/pkg/pubsub"
-	"github.com/polygonid/sh-id-platform/pkg/reverse_hash"
+	"github.com/rarimo/issuer-node/internal/config"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/core/services"
+	"github.com/rarimo/issuer-node/internal/db"
+	"github.com/rarimo/issuer-node/internal/gateways"
+	"github.com/rarimo/issuer-node/internal/kms"
+	"github.com/rarimo/issuer-node/internal/loader"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/providers"
+	"github.com/rarimo/issuer-node/internal/redis"
+	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/blockchain/eth"
+	"github.com/rarimo/issuer-node/pkg/cache"
+	"github.com/rarimo/issuer-node/pkg/loaders"
+	"github.com/rarimo/issuer-node/pkg/pubsub"
+	"github.com/rarimo/issuer-node/pkg/reverse_hash"
 )
 
 func main() {
-	cfg, err := config.Load("")
+	cfg, err := config.Load("./config.toml")
 	if err != nil {
 		log.Error(context.Background(), "cannot load config", "err", err)
 		panic(err)
@@ -112,9 +114,10 @@ func main() {
 	identityRepo := repositories.NewIdentity()
 	claimsRepo := repositories.NewClaims()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
+	merkleTreeRootsRepository := repositories.NewMerkleTreeNodesRepository()
 	identityStateRepo := repositories.NewIdentityState()
 	revocationRepository := repositories.NewRevocation()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtService := services.NewIdentityMerkleTrees(mtRepo, merkleTreeRootsRepository)
 
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -127,9 +130,11 @@ func main() {
 		schemaLoader,
 		storage,
 		services.ClaimCfg{
-			RHSEnabled: cfg.ReverseHashService.Enabled,
-			RHSUrl:     cfg.ReverseHashService.URL,
-			Host:       cfg.ServerUrl,
+			RHSEnabled:   cfg.ReverseHashService.Enabled,
+			RHSUrl:       cfg.ReverseHashService.URL,
+			Host:         cfg.ServerUrl,
+			UIHost:       cfg.APIUI.ServerURL,
+			SingleIssuer: cfg.SingleIssuer,
 		},
 		ps,
 		cfg.IFPS.GatewayURL,
@@ -140,13 +145,20 @@ func main() {
 		panic("Error dialing with ethclient: " + err.Error())
 	}
 
+	minGasPrice := big.NewInt(int64(cfg.Ethereum.MinGasPrice))
+	maxGasPrice := big.NewInt(int64(cfg.Ethereum.MaxGasPrice))
+	if cfg.GasPriceZero {
+		minGasPrice = big.NewInt(0)
+		maxGasPrice = big.NewInt(0)
+	}
+
 	cl := eth.NewClient(commonClient, &eth.ClientConfig{
 		DefaultGasLimit:        cfg.Ethereum.DefaultGasLimit,
 		ConfirmationTimeout:    cfg.Ethereum.ConfirmationTimeout,
 		ConfirmationBlockCount: cfg.Ethereum.ConfirmationBlockCount,
 		ReceiptTimeout:         cfg.Ethereum.ReceiptTimeout,
-		MinGasPrice:            big.NewInt(int64(cfg.Ethereum.MinGasPrice)),
-		MaxGasPrice:            big.NewInt(int64(cfg.Ethereum.MaxGasPrice)),
+		MinGasPrice:            minGasPrice,
+		MaxGasPrice:            maxGasPrice,
 		RPCResponseTimeout:     cfg.Ethereum.RPCResponseTimeout,
 		WaitReceiptCycleTime:   cfg.Ethereum.WaitReceiptCycleTime,
 		WaitBlockCycleTime:     cfg.Ethereum.WaitBlockCycleTime,
@@ -170,17 +182,20 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
-	go func(ctx context.Context) {
-		ticker := time.NewTicker(cfg.OnChainCheckStatusFrequency)
-		for {
-			select {
-			case <-ticker.C:
-				publisher.CheckTransactionStatus(ctx)
-			case <-ctx.Done():
-				log.Info(ctx, "finishing check transaction status job")
-			}
-		}
-	}(ctx)
+	wg := new(sync.WaitGroup)
+	run(ctx, wg, cfg, publisher, onChainPublisherRunner)
+	run(ctx, wg, cfg, publisher, statusCheckerRunner)
+
+	waitGroupChannel := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(waitGroupChannel)
+	}()
+
+	select {
+	case <-quit:
+	case <-waitGroupChannel:
+	}
 
 	<-quit
 	log.Info(ctx, "finishing app")
@@ -202,4 +217,85 @@ func initProofService(ctx context.Context, config *config.Configuration, circuit
 		ResponseTimeout: config.Prover.ResponseTimeout,
 	}
 	return gateways.NewProverService(proverConfig)
+}
+
+func run(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	cfg *config.Configuration,
+	publisher ports.Publisher,
+	runner func(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher),
+) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		runner(ctx, cfg, publisher)
+	}()
+}
+
+func onChainPublisherRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher) {
+	ticker := time.NewTicker(cfg.OnChainCheckStatusFrequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// If the previous state publishing is failed, we try to re-publish it
+			republishedState, err := publisher.RetryPublishState(ctx, &cfg.APIUI.IssuerDID) // TODO single
+			if err != nil && !errors.Is(err, gateways.ErrNoFailedStatesToProcess) {
+				if errors.Is(err, gateways.ErrStateIsBeingProcessed) {
+					continue
+				}
+
+				log.Error(ctx, "error re-publishing state", "err", err)
+				continue
+			}
+			if republishedState != nil {
+				ticker.Reset(cfg.StatesTransitionFrequency)
+				log.Info(ctx, "re-published state",
+					"tx", republishedState.TxID,
+					"state", republishedState.State,
+				)
+				continue
+			}
+
+			publishedState, err := publisher.PublishState(ctx, &cfg.APIUI.IssuerDID) // TODO single
+			if err != nil {
+				if errors.Is(err, gateways.ErrStateIsBeingProcessed) ||
+					errors.Is(err, gateways.ErrNoStatesToProcess) {
+					continue
+				}
+
+				ticker.Reset(cfg.StatesTransitionFrequency)
+				log.Error(ctx, "error publishing state", "err", err)
+				continue
+			}
+			if publishedState == nil {
+				log.Error(ctx, "published state is nil")
+				continue
+			}
+
+			log.Info(ctx, "published state",
+				"tx", publishedState.TxID,
+				"state", publishedState.State,
+			)
+		case <-ctx.Done():
+			log.Info(ctx, "finishing on chain publishing job")
+		}
+	}
+}
+
+func statusCheckerRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher) {
+	ticker := time.NewTicker(cfg.StatesTransitionFrequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			publisher.CheckTransactionStatus(ctx)
+		case <-ctx.Done():
+			log.Info(ctx, "finishing check transaction status job")
+		}
+	}
 }

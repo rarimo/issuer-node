@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/polygonid/sh-id-platform/internal/config"
-	"github.com/polygonid/sh-id-platform/internal/db"
-	"github.com/polygonid/sh-id-platform/internal/db/schema"
+	"github.com/rarimo/issuer-node/internal/config"
+	"github.com/rarimo/issuer-node/internal/db"
+	"github.com/rarimo/issuer-node/internal/db/schema"
 )
 
 const (

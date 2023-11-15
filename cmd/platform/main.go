@@ -14,29 +14,29 @@ import (
 	"github.com/go-chi/cors"
 	redis2 "github.com/go-redis/redis/v8"
 
-	"github.com/polygonid/sh-id-platform/internal/api"
-	"github.com/polygonid/sh-id-platform/internal/config"
-	"github.com/polygonid/sh-id-platform/internal/core/services"
-	"github.com/polygonid/sh-id-platform/internal/db"
-	"github.com/polygonid/sh-id-platform/internal/errors"
-	"github.com/polygonid/sh-id-platform/internal/gateways"
-	"github.com/polygonid/sh-id-platform/internal/health"
-	"github.com/polygonid/sh-id-platform/internal/kms"
-	"github.com/polygonid/sh-id-platform/internal/loader"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/internal/providers"
-	"github.com/polygonid/sh-id-platform/internal/providers/blockchain"
-	"github.com/polygonid/sh-id-platform/internal/redis"
-	"github.com/polygonid/sh-id-platform/internal/repositories"
-	"github.com/polygonid/sh-id-platform/pkg/cache"
-	"github.com/polygonid/sh-id-platform/pkg/loaders"
-	"github.com/polygonid/sh-id-platform/pkg/protocol"
-	"github.com/polygonid/sh-id-platform/pkg/pubsub"
-	"github.com/polygonid/sh-id-platform/pkg/reverse_hash"
+	"github.com/rarimo/issuer-node/internal/api"
+	"github.com/rarimo/issuer-node/internal/config"
+	"github.com/rarimo/issuer-node/internal/core/services"
+	"github.com/rarimo/issuer-node/internal/db"
+	"github.com/rarimo/issuer-node/internal/errors"
+	"github.com/rarimo/issuer-node/internal/gateways"
+	"github.com/rarimo/issuer-node/internal/health"
+	"github.com/rarimo/issuer-node/internal/kms"
+	"github.com/rarimo/issuer-node/internal/loader"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/providers"
+	"github.com/rarimo/issuer-node/internal/providers/blockchain"
+	"github.com/rarimo/issuer-node/internal/redis"
+	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/cache"
+	"github.com/rarimo/issuer-node/pkg/loaders"
+	"github.com/rarimo/issuer-node/pkg/protocol"
+	"github.com/rarimo/issuer-node/pkg/pubsub"
+	"github.com/rarimo/issuer-node/pkg/reverse_hash"
 )
 
 func main() {
-	cfg, err := config.Load("")
+	cfg, err := config.Load("./config.toml")
 	if err != nil {
 		log.Error(context.Background(), "cannot load config", "err", err)
 		return
@@ -109,11 +109,12 @@ func main() {
 	identityRepository := repositories.NewIdentity()
 	claimsRepository := repositories.NewClaims()
 	mtRepository := repositories.NewIdentityMerkleTreeRepository()
+	merkleTreeRootsRepository := repositories.NewMerkleTreeNodesRepository()
 	identityStateRepository := repositories.NewIdentityState()
 	revocationRepository := repositories.NewRevocation()
 
 	// services initialization
-	mtService := services.NewIdentityMerkleTrees(mtRepository)
+	mtService := services.NewIdentityMerkleTrees(mtRepository, merkleTreeRootsRepository)
 	identityService := services.NewIdentity(keyStore, identityRepository, mtRepository, identityStateRepository, mtService, claimsRepository, revocationRepository, nil, storage, rhsp, nil, nil, ps)
 	claimsService := services.NewClaim(
 		claimsRepository,
@@ -126,6 +127,7 @@ func main() {
 			RHSEnabled: cfg.ReverseHashService.Enabled,
 			RHSUrl:     cfg.ReverseHashService.URL,
 			Host:       cfg.ServerUrl,
+			UIHost:     cfg.APIUI.ServerURL,
 		},
 		ps,
 		cfg.IFPS.GatewayURL,
@@ -200,6 +202,7 @@ func main() {
 
 func middlewares(ctx context.Context, auth config.HTTPBasicAuth) []api.StrictMiddlewareFunc {
 	return []api.StrictMiddlewareFunc{
+		api.ReqMiddleware(ctx),
 		api.LogMiddleware(ctx),
 		api.BasicAuthMiddleware(ctx, auth.User, auth.Password),
 	}

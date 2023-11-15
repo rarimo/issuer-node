@@ -7,26 +7,26 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/polygonid/sh-id-platform/internal/config"
-	"github.com/polygonid/sh-id-platform/internal/core/event"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/core/services"
-	"github.com/polygonid/sh-id-platform/internal/db"
-	"github.com/polygonid/sh-id-platform/internal/gateways"
-	"github.com/polygonid/sh-id-platform/internal/kms"
-	"github.com/polygonid/sh-id-platform/internal/loader"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/internal/providers"
-	"github.com/polygonid/sh-id-platform/internal/redis"
-	"github.com/polygonid/sh-id-platform/internal/repositories"
-	"github.com/polygonid/sh-id-platform/pkg/cache"
-	"github.com/polygonid/sh-id-platform/pkg/http"
-	"github.com/polygonid/sh-id-platform/pkg/pubsub"
-	"github.com/polygonid/sh-id-platform/pkg/reverse_hash"
+	"github.com/rarimo/issuer-node/internal/config"
+	"github.com/rarimo/issuer-node/internal/core/event"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/core/services"
+	"github.com/rarimo/issuer-node/internal/db"
+	"github.com/rarimo/issuer-node/internal/gateways"
+	"github.com/rarimo/issuer-node/internal/kms"
+	"github.com/rarimo/issuer-node/internal/loader"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/providers"
+	"github.com/rarimo/issuer-node/internal/redis"
+	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/cache"
+	"github.com/rarimo/issuer-node/pkg/http"
+	"github.com/rarimo/issuer-node/pkg/pubsub"
+	"github.com/rarimo/issuer-node/pkg/reverse_hash"
 )
 
 func main() {
-	cfg, err := config.Load("")
+	cfg, err := config.Load("./config.toml")
 	if err != nil {
 		log.Error(context.Background(), "cannot load config", "err", err)
 		return
@@ -101,6 +101,7 @@ func newCredentialsService(cfg *config.Configuration, storage *db.Storage, cache
 	mtRepository := repositories.NewIdentityMerkleTreeRepository()
 	identityStateRepository := repositories.NewIdentityState()
 	revocationRepository := repositories.NewRevocation()
+	merkleTreeRootsRepository := repositories.NewMerkleTreeNodesRepository()
 	keyStore, err := kms.Open(cfg.KeyStore.PluginIden3MountPath, vaultCli)
 	if err != nil {
 		return nil, fmt.Errorf("cannot initialize kms: err %s", err.Error())
@@ -114,7 +115,7 @@ func newCredentialsService(cfg *config.Configuration, storage *db.Storage, cache
 		schemaLoader = loader.CachedFactory(loader.HTTPFactory, cachex)
 	}
 
-	mtService := services.NewIdentityMerkleTrees(mtRepository)
+	mtService := services.NewIdentityMerkleTrees(mtRepository, merkleTreeRootsRepository)
 	identityService := services.NewIdentity(keyStore, identityRepository, mtRepository, identityStateRepository, mtService, claimsRepository, revocationRepository, nil, storage, rhsp, nil, nil, ps)
 	claimsService := services.NewClaim(
 		claimsRepository,
@@ -127,6 +128,7 @@ func newCredentialsService(cfg *config.Configuration, storage *db.Storage, cache
 			RHSEnabled: cfg.ReverseHashService.Enabled,
 			RHSUrl:     cfg.ReverseHashService.URL,
 			Host:       cfg.ServerUrl,
+			UIHost:     cfg.APIUI.ServerURL,
 		},
 		ps,
 		cfg.IFPS.GatewayURL,

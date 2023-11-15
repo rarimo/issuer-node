@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"net/url"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	core "github.com/iden3/go-iden3-core"
+	sql "github.com/iden3/go-merkletree-sql/db/pgx/v2"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/merklize"
 	"github.com/iden3/go-schema-processor/processor"
@@ -20,18 +20,19 @@ import (
 	"github.com/iden3/iden3comm/protocol"
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/jackc/pgx/v4"
+	"github.com/pkg/errors"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/event"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/db"
-	"github.com/polygonid/sh-id-platform/internal/loader"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/internal/repositories"
-	"github.com/polygonid/sh-id-platform/pkg/pubsub"
-	"github.com/polygonid/sh-id-platform/pkg/rand"
-	schemaPkg "github.com/polygonid/sh-id-platform/pkg/schema"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/event"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/db"
+	"github.com/rarimo/issuer-node/internal/loader"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/pubsub"
+	"github.com/rarimo/issuer-node/pkg/rand"
+	schemaPkg "github.com/rarimo/issuer-node/pkg/schema"
 )
 
 var (
@@ -48,9 +49,11 @@ var (
 
 // ClaimCfg claim service configuration
 type ClaimCfg struct {
-	RHSEnabled bool // ReverseHash Enabled
-	RHSUrl     string
-	Host       string
+	RHSEnabled   bool // ReverseHash Enabled
+	RHSUrl       string
+	Host         string
+	UIHost       string
+	SingleIssuer bool
 }
 
 type claim struct {
@@ -72,6 +75,7 @@ func NewClaim(repo ports.ClaimsRepository, idenSrv ports.IdentityService, mtServ
 			RHSEnabled: cfg.RHSEnabled,
 			RHSUrl:     cfg.RHSUrl,
 			Host:       cfg.Host,
+			UIHost:     cfg.UIHost,
 		},
 		icRepo:                  repo,
 		identitySrv:             idenSrv,
@@ -140,11 +144,13 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 		return nil, err
 	}
 
-	vc, err := c.createVC(req, vcID, jsonLdContext, nonce)
+	vc, err := c.createVC(req, vcID, jsonLdContext, nonce) // FIXME here id link
 	if err != nil {
 		log.Error(ctx, "creating verifiable credential", "err", err)
 		return nil, err
 	}
+
+	jsonLdContext = strings.ReplaceAll(jsonLdContext, "https://ipfs.io/", "https://ipfs.rarimo.com/")
 
 	jsonLDCtxBytes, _, err := c.loaderFactory(jsonLdContext).Load(ctx)
 	if err != nil {
@@ -287,6 +293,18 @@ func (c *claim) GetByID(ctx context.Context, issID *core.DID, id uuid.UUID) (*do
 	return claim, nil
 }
 
+func (c *claim) GetBySingleID(ctx context.Context, id uuid.UUID) (*domain.Claim, error) {
+	claim, err := c.icRepo.GetById(ctx, c.storage.Pgx, id)
+	if err != nil {
+		if errors.Is(err, repositories.ErrClaimDoesNotExist) {
+			return nil, ErrClaimNotFound
+		}
+		return nil, err
+	}
+
+	return claim, nil
+}
+
 func (c *claim) Agent(ctx context.Context, req *ports.AgentRequest) (*domain.Agent, error) {
 	exists, err := c.identitySrv.Exists(ctx, *req.IssuerDID)
 	if err != nil {
@@ -322,13 +340,22 @@ func (c *claim) GetAll(ctx context.Context, did core.DID, filter *ports.ClaimsFi
 	return claims, nil
 }
 
-func (c *claim) GetRevocationStatus(ctx context.Context, issuerDID core.DID, nonce uint64) (*verifiable.RevocationStatus, error) {
+func (c *claim) GetRevocationStatus(ctx context.Context, issuerDID core.DID, nonce uint64, stateHash string) (*verifiable.RevocationStatus, error) {
 	rID := new(big.Int).SetUint64(nonce)
 	revocationStatus := &verifiable.RevocationStatus{}
 
-	state, err := c.identityStateRepository.GetLatestStateByIdentifier(ctx, c.storage.Pgx, &issuerDID)
-	if err != nil {
-		return nil, err
+	state := new(domain.IdentityState)
+	var err error
+	if stateHash == "" {
+		state, err = c.identityStateRepository.GetLatestStateByIdentifier(ctx, c.storage.Pgx, &issuerDID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		state, err = c.identityStateRepository.GetStateByHash(ctx, c.storage.Pgx, stateHash)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	revocationStatus.Issuer.State = state.State
@@ -410,6 +437,11 @@ func (c *claim) UpdateClaimsMTPAndState(ctx context.Context, currentState *domai
 		return err
 	}
 
+	authClaim, err := c.GetAuthClaim(ctx, did)
+	if err != nil {
+		return err
+	}
+
 	for i := range claims {
 		var index *big.Int
 		var coreClaimHex string
@@ -427,10 +459,12 @@ func (c *claim) UpdateClaimsMTPAndState(ctx context.Context, currentState *domai
 		if err != nil {
 			return err
 		}
-		mtpProof := verifiable.Iden3SparseMerkleTreeProof{
+		mtpProof := common.Iden3SparseMerkleTreeProof{
+			ID:   c.buildMTProofURL(claims[i].ID),
 			Type: verifiable.Iden3SparseMerkleTreeProofType,
-			IssuerData: verifiable.IssuerData{
-				ID: did.String(),
+			IssuerData: common.IssuerData{
+				ID:        did.String(),
+				UpdateURL: c.buildMTProofURL(authClaim.ID),
 				State: verifiable.State{
 					RootOfRoots:        currentState.RootOfRoots,
 					ClaimsTreeRoot:     currentState.ClaimsTreeRoot,
@@ -475,6 +509,32 @@ func (c *claim) UpdateClaimsMTPAndState(ctx context.Context, currentState *domai
 
 func (c *claim) GetByStateIDWithMTPProof(ctx context.Context, did *core.DID, state string) ([]*domain.Claim, error) {
 	return c.icRepo.GetByStateIDWithMTPProof(ctx, c.storage.Pgx, did, state)
+}
+
+func (c *claim) GetMTProof(
+	ctx context.Context, leafKey *big.Int, root *merkletree.Hash, merkleTreeID int64,
+) (*merkletree.Proof, error) {
+	merkleTree, err := merkletree.NewMerkleTree(
+		ctx, sql.NewSqlStorage(c.storage.Pgx, uint64(merkleTreeID)), mtDepth,
+	)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get merkle tree (merkleTreeID: %v)", merkleTreeID)
+	}
+
+	mtp, _, err := merkleTree.GenerateProof(ctx, leafKey, root)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to generate merkle tree proof")
+	}
+
+	return mtp, nil
+}
+
+func (c *claim) GetMTIDByKey(ctx context.Context, key string) (int64, error) {
+	iMT, err := c.mtService.GetMTIDByKey(ctx, c.storage.Pgx, key)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get identity merkle tree by ID")
+	}
+	return iMT, nil
 }
 
 func (c *claim) revoke(ctx context.Context, did *core.DID, nonce uint64, description string, pgx db.Querier) error {
@@ -542,7 +602,7 @@ func (c *claim) getAgentCredential(ctx context.Context, basicMessage *ports.Agen
 		return nil, err
 	}
 
-	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim)
+	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim, c.cfg.UIHost)
 	if err != nil {
 		log.Error(ctx, "creating W3 credential", "err", err)
 		return nil, fmt.Errorf("failed to convert claim to  w3cCredential: %w", err)
@@ -576,7 +636,7 @@ func (c *claim) guardCreateClaimRequest(req *ports.CreateClaimRequest) error {
 }
 
 func (c *claim) newVerifiableCredential(claimReq *ports.CreateClaimRequest, vcID uuid.UUID, jsonLdContext string, nonce uint64) (verifiable.W3CCredential, error) {
-	credentialCtx := []string{verifiable.JSONLDSchemaW3CCredential2018, verifiable.JSONLDSchemaIden3Credential, jsonLdContext}
+	credentialCtx := []string{common.JSONLDSchemaW3CCredential2018, verifiable.JSONLDSchemaIden3Credential, jsonLdContext}
 	credentialType := []string{verifiable.TypeW3CVerifiableCredential, claimReq.Type}
 
 	credentialSubject := claimReq.CredentialSubject
@@ -617,14 +677,14 @@ func (c *claim) getRevocationSource(issuerDID string, nonce uint64, singleIssuer
 			Type:            verifiable.Iden3ReverseSparseMerkleTreeProof,
 			RevocationNonce: nonce,
 			StatusIssuer: &verifiable.CredentialStatus{
-				ID:              buildRevocationURL(c.cfg.Host, issuerDID, nonce, singleIssuer),
+				ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
 				Type:            verifiable.SparseMerkleTreeProof,
 				RevocationNonce: nonce,
 			},
 		}
 	}
 	return &verifiable.CredentialStatus{
-		ID:              buildRevocationURL(c.cfg.Host, issuerDID, nonce, singleIssuer),
+		ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
 		Type:            verifiable.SparseMerkleTreeProof,
 		RevocationNonce: nonce,
 	}
@@ -632,18 +692,26 @@ func (c *claim) getRevocationSource(issuerDID string, nonce uint64, singleIssuer
 
 func (c *claim) buildCredentialID(issuerDID core.DID, credID uuid.UUID, singleIssuer bool) string {
 	if singleIssuer {
-		return fmt.Sprintf("%s/v1/credentials/%s", strings.TrimSuffix(c.cfg.Host, "/"), credID.String())
+		return fmt.Sprintf("%s/v1/credentials/%s", strings.TrimSuffix(c.cfg.UIHost, "/"), credID.String()) // FIXME UI host
 	}
 
 	return fmt.Sprintf("%s/v1/%s/claims/%s", strings.TrimSuffix(c.cfg.Host, "/"), issuerDID.String(), credID.String())
 }
 
-func buildRevocationURL(host, issuerDID string, nonce uint64, singleIssuer bool) string {
+func buildRevocationURL(cfg ClaimCfg, issuerDID string, nonce uint64, singleIssuer bool) string {
 	if singleIssuer {
 		return fmt.Sprintf("%s/v1/credentials/revocation/status/%d",
-			host, nonce)
+			cfg.UIHost, nonce)
 	}
 
 	return fmt.Sprintf("%s/v1/%s/claims/revocation/status/%d",
-		host, url.QueryEscape(issuerDID), nonce)
+		cfg.Host, url.QueryEscape(issuerDID), nonce)
+}
+
+func (c *claim) buildMTProofURL(credID uuid.UUID) string {
+	if c.cfg.SingleIssuer {
+		return fmt.Sprintf("%s/v1/claims/%s/mtp", c.cfg.UIHost, credID.String())
+	}
+
+	return fmt.Sprintf("%s/v1/claims/%s/mtp", c.cfg.Host, credID.String())
 }

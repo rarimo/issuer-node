@@ -11,9 +11,9 @@ import (
 	"github.com/mr-tron/base58"
 	"github.com/pkg/errors"
 
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/db"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/db"
 )
 
 const (
@@ -36,12 +36,16 @@ var (
 
 type mtService struct {
 	imtRepo ports.IdentityMerkleTreeRepository
+	mtnRepo ports.MerkleTreeNodesRepository
 }
 
 // NewIdentityMerkleTrees generates a new merkle tree service
-func NewIdentityMerkleTrees(imtRepo ports.IdentityMerkleTreeRepository) ports.MtService {
+func NewIdentityMerkleTrees(
+	imtRepo ports.IdentityMerkleTreeRepository, mtrRepo ports.MerkleTreeNodesRepository,
+) ports.MtService {
 	return &mtService{
 		imtRepo: imtRepo,
+		mtnRepo: mtrRepo,
 	}
 }
 
@@ -107,6 +111,14 @@ func (mts *mtService) GetIdentityMerkleTrees(ctx context.Context, conn db.Querie
 		ImtModels:  imtModels,
 	}
 	return imTrees, nil
+}
+
+func (mts *mtService) GetMTIDByKey(ctx context.Context, conn db.Querier, key string) (int64, error) {
+	mtID, err := mts.mtnRepo.GetMTIDByKey(ctx, conn, key)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get identity merkle tree by ID")
+	}
+	return mtID, nil
 }
 
 func findByType(mts []domain.IdentityMerkleTree, tp uint16) *domain.IdentityMerkleTree {

@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/domain"
 )
 
 // CreateConnection fixture

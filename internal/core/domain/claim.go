@@ -13,7 +13,7 @@ import (
 	"github.com/iden3/go-schema-processor/verifiable"
 	"github.com/jackc/pgtype"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
+	"github.com/rarimo/issuer-node/internal/common"
 )
 
 // CoreClaim is an alias for the core.Claim struct
@@ -133,8 +133,8 @@ func BuildTreeState(state, claimsTreeRoot, revocationTreeRoot, rootOfRoots *stri
 }
 
 // GetBJJSignatureProof2021 TBD
-func (c *Claim) GetBJJSignatureProof2021() (*verifiable.BJJSignatureProof2021, error) {
-	var sigProof verifiable.BJJSignatureProof2021
+func (c *Claim) GetBJJSignatureProof2021() (*common.BJJSignatureProof2021, error) {
+	var sigProof common.BJJSignatureProof2021
 	err := c.SignatureProof.AssignTo(&sigProof)
 	if err != nil {
 		return &sigProof, err
@@ -154,7 +154,7 @@ func (c *Claim) GetVerifiableCredential() (verifiable.W3CCredential, error) {
 
 // GetCircuitIncProof TBD
 func (c *Claim) GetCircuitIncProof() (circuits.MTProof, error) {
-	var proof verifiable.Iden3SparseMerkleTreeProof
+	var proof common.Iden3SparseMerkleTreeProof
 	err := c.MTPProof.AssignTo(&proof)
 	if err != nil {
 		return circuits.MTProof{}, err

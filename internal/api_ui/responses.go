@@ -2,6 +2,7 @@ package api_ui
 
 import (
 	"fmt"
+	"github.com/oapi-codegen/runtime/types"
 	"strings"
 	"time"
 
@@ -11,9 +12,9 @@ import (
 	"github.com/iden3/iden3comm/packers"
 	"github.com/iden3/iden3comm/protocol"
 
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	link_state "github.com/polygonid/sh-id-platform/pkg/link"
-	"github.com/polygonid/sh-id-platform/pkg/schema"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	link_state "github.com/rarimo/issuer-node/pkg/link"
+	"github.com/rarimo/issuer-node/pkg/schema"
 )
 
 const (
@@ -91,7 +92,7 @@ func getProofs(credential *domain.Claim) []string {
 	return proofs
 }
 
-func connectionsResponse(conns []*domain.Connection) (GetConnectionsResponse, error) {
+func connectionsResponse(conns []*domain.Connection, platformUIHost string) (GetConnectionsResponse, error) {
 	resp := make([]GetConnectionResponse, 0)
 	var err error
 	for _, conn := range conns {
@@ -99,7 +100,7 @@ func connectionsResponse(conns []*domain.Connection) (GetConnectionsResponse, er
 		var connCreds domain.Credentials
 		if conn.Credentials != nil {
 			connCreds = *conn.Credentials
-			w3creds, err = schema.FromClaimsModelToW3CCredential(connCreds)
+			w3creds, err = schema.FromClaimsModelToW3CCredential(connCreds, platformUIHost)
 			if err != nil {
 				return nil, err
 			}
@@ -209,7 +210,7 @@ func getLinkResponse(link domain.Link) Link {
 		ProofTypes:           getLinkProofs(link),
 		CreatedAt:            link.CreatedAt,
 		Expiration:           link.ValidUntil,
-		CredentialExpiration: date,
+		CredentialExpiration: (*types.Date)(date),
 	}
 }
 

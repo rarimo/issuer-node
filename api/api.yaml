@@ -336,6 +336,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/pathIdentifier'
         - $ref: '#/components/parameters/pathNonce'
+        - $ref: '#/components/parameters/pathStateHash'
       responses:
         '200':
           description: Proof
@@ -351,7 +352,7 @@ paths:
     get:
       summary: Get Claim QR code
       operationId: GetClaimQrCode
-      description: Returns a a json that can be used to create the QR Code to scan for accepting a claim.
+      description: Returns a json that can be used to create the QR Code to scan for accepting a claim.
       tags:
         - Claim
       security:
@@ -372,6 +373,47 @@ paths:
           $ref: '#/components/responses/404'
         '500':
           $ref: '#/components/responses/500'
+  /v1/claims/{id}/mtp:
+    get:
+      summary: Get Claim MTP
+      operationId: GetClaimMTP
+      description: Returns claim's MT inclusion proof for a given state hash.
+      tags:
+        - Claim
+      parameters:
+        - $ref: '#/components/parameters/pathClaim'
+        - $ref: '#/components/parameters/pathStateHash'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetClaimMTPResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '404':
+          $ref: '#/components/responses/404'
+        '500':
+          $ref: '#/components/responses/500'
+  /v1/{identifier}/claims/{id}/status/subscribe:
+    get:
+      summary: Websocket for getting claim status
+      operationId: SubscribeToClaimWebsocket
+      description: Subscribes to websocket for getting claim status
+      tags:
+        - Claim
+      security:
+        - basicAuth: [ ]
+      parameters:
+        - $ref: '#/components/parameters/pathIdentifier'
+        - $ref: '#/components/parameters/pathClaim'
+      responses:
+        '200':
+          description: ok
+        '500':
+          $ref: '#/components/responses/500'
+
 #agent
   /v1/agent:
     post:
@@ -396,6 +438,36 @@ paths:
                 $ref: '#/components/schemas/AgentResponse'
         '400':
           $ref: '#/components/responses/400'
+        '500':
+          $ref: '#/components/responses/500'
+
+#users
+  /v1/users:
+    post:
+      summary: Add user
+      operationId: AddUser
+      description: Adds login, password and did of a user to the database.
+      tags:
+        - User
+      security:
+        - basicAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddUserRequest'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetClaimQrCodeResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '404':
+          $ref: '#/components/responses/404'
         '500':
           $ref: '#/components/responses/500'
 
@@ -568,6 +640,28 @@ components:
           documentType: 2
         expiration: 1903357766
 
+    #users
+    AddUserRequest:
+      type: object
+      required:
+        - login
+        - password
+        - did
+      properties:
+        login:
+          type: string
+          x-omitempty: false
+        password:
+          type: string
+          x-omitempty: false
+        did:
+          type: string
+          x-omitempty: false
+      example:
+        login: "login"
+        password: "password"
+        did: "did:polygonid:polygon:mumbai:2qJ7rPjFMoQyJAmwCz34J8G3Ww3BihdzrPV539tAYB"
+
     CreateClaimResponse:
       type: object
       required:
@@ -670,6 +764,43 @@ components:
           type: string
         to:
           type: string
+
+    GetClaimMTPResponse:
+      type: object
+      required:
+        - issuer
+        - mtp
+      properties:
+        issuer:
+          type: object
+          properties:
+            state:
+              type: string
+            rootOfRoots:
+              type: string
+            claimsTreeRoot:
+              type: string
+            revocationTreeRoot:
+              type: string
+        mtp:
+          type: object
+          required:
+            - existence
+          properties:
+            existence:
+              type: boolean
+            siblings:
+              type: array
+              x-omitempty: false
+              items:
+                type: string
+            node_aux:
+              type: object
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
 
 
     CredentialSchema:
@@ -787,6 +918,13 @@ components:
       schema:
         type: integer
         format: int64
+    pathStateHash:
+      name: state_hash
+      in: query
+      required: false
+      description: Identity state hash
+      schema:
+        type: string
 
 
   responses:

@@ -14,8 +14,8 @@ import (
 	core "github.com/iden3/go-iden3-core"
 	"github.com/spf13/viper"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/log"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/log"
 )
 
 const (
@@ -47,6 +47,9 @@ type Configuration struct {
 	SchemaCache                  *bool              `mapstructure:"SchemaCache"`
 	APIUI                        APIUI              `mapstructure:"APIUI"`
 	IFPS                         IPFS               `mapstructure:"IPFS"`
+	GasPriceZero                 bool               `mapstructure:"IsGasPriceZero"`
+	StatesTransitionFrequency    time.Duration      `mapstructure:"StatesTransitionFrequency"`
+	SingleIssuer                 bool               `mapstructure:"SingleIssuer"`
 }
 
 // Database has the database configuration
@@ -345,6 +348,8 @@ func bindEnv() {
 	_ = viper.BindEnv("NativeProofGenerationEnabled", "ISSUER_NATIVE_PROOF_GENERATION_ENABLED")
 	_ = viper.BindEnv("PublishingKeyPath", "ISSUER_PUBLISH_KEY_PATH")
 	_ = viper.BindEnv("OnChainCheckStatusFrequency", "ISSUER_ONCHAIN_CHECK_STATUS_FREQUENCY")
+	_ = viper.BindEnv("StatesTransitionFrequency", "ISSUER_STATES_TRANSITION_FREQUENCY")
+	_ = viper.BindEnv("IsGasPriceZero", "ISSUER_IS_GAS_PRICE_ZERO")
 
 	_ = viper.BindEnv("Database.URL", "ISSUER_DATABASE_URL")
 
@@ -395,6 +400,7 @@ func bindEnv() {
 	_ = viper.BindEnv("APIUI.IdentityMethod", "ISSUER_API_IDENTITY_METHOD")
 	_ = viper.BindEnv("APIUI.IdentityBlockchain", "ISSUER_API_IDENTITY_BLOCKCHAIN")
 	_ = viper.BindEnv("APIUI.IdentityNetwork", "ISSUER_API_IDENTITY_NETWORK")
+	_ = viper.BindEnv("SingleIssuer", "ISSUER_SINGLE")
 
 	viper.AutomaticEnv()
 }
@@ -420,6 +426,10 @@ func checkEnvVars(ctx context.Context, cfg *Configuration) {
 
 	if cfg.OnChainCheckStatusFrequency == 0 {
 		log.Info(ctx, "ISSUER_ONCHAIN_CHECK_STATUS_FREQUENCY value is missing")
+	}
+
+	if cfg.StatesTransitionFrequency == 0 {
+		log.Info(ctx, "ISSUER_STATES_TRANSITION_FREQUENCY value is missing")
 	}
 
 	if cfg.Database.URL == "" {
@@ -550,13 +560,11 @@ func checkEnvVars(ctx context.Context, cfg *Configuration) {
 	}
 
 	if cfg.APIUI.IdentityBlockchain == "" {
-		log.Info(ctx, "ISSUER_API_IDENTITY_BLOCKCHAIN value is missing and the server set up it as polygon")
-		cfg.APIUI.IdentityBlockchain = "polygon"
+		log.Info(ctx, "ISSUER_API_IDENTITY_BLOCKCHAIN value is missing")
 	}
 
 	if cfg.APIUI.IdentityNetwork == "" {
-		log.Info(ctx, "ISSUER_API_IDENTITY_NETWORK value is missing and the server set up it as mumbai")
-		cfg.APIUI.IdentityNetwork = "mumbai"
+		log.Info(ctx, "ISSUER_API_IDENTITY_NETWORK value is missing")
 	}
 }
 

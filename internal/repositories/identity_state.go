@@ -7,9 +7,9 @@ import (
 	core "github.com/iden3/go-iden3-core"
 	"github.com/jackc/pgx/v4"
 
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/db"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/db"
 )
 
 type identityState struct{}
@@ -58,6 +58,31 @@ func (isr *identityState) GetLatestStateByIdentifier(ctx context.Context, conn d
        revocation_tree_root, block_timestamp, block_number, tx_id, previous_state, status, modified_at, created_at 
 FROM identity_states
 WHERE identifier=$1 AND status = 'confirmed' ORDER BY state_id DESC LIMIT 1`, identifier.String())
+	state := domain.IdentityState{}
+	if err := row.Scan(&state.StateID,
+		&state.Identifier,
+		&state.State,
+		&state.RootOfRoots,
+		&state.ClaimsTreeRoot,
+		&state.RevocationTreeRoot,
+		&state.BlockTimestamp,
+		&state.BlockNumber,
+		&state.TxID,
+		&state.PreviousState,
+		&state.Status,
+		&state.ModifiedAt,
+		&state.CreatedAt); err != nil {
+		return nil, fmt.Errorf("error trying to get latest state:%w", err)
+	}
+
+	return &state, nil
+}
+
+func (isr *identityState) GetStateByHash(ctx context.Context, conn db.Querier, hash string) (*domain.IdentityState, error) {
+	row := conn.QueryRow(ctx, `SELECT state_id, identifier, state, root_of_roots, claims_tree_root, 
+       revocation_tree_root, block_timestamp, block_number, tx_id, previous_state, status, modified_at, created_at 
+FROM identity_states
+WHERE state=$1 AND status = 'confirmed' ORDER BY state_id DESC LIMIT 1`, hash)
 	state := domain.IdentityState{}
 	if err := row.Scan(&state.StateID,
 		&state.Identifier,

@@ -15,8 +15,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/piprate/json-gold/ld"
 
-	"github.com/polygonid/sh-id-platform/internal/loader"
-	"github.com/polygonid/sh-id-platform/pkg/cache"
+	"github.com/rarimo/issuer-node/internal/loader"
+	"github.com/rarimo/issuer-node/pkg/cache"
 )
 
 const (

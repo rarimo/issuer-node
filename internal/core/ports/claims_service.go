@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/iden3/go-merkletree-sql/v2"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,8 +14,8 @@ import (
 	comm "github.com/iden3/iden3comm"
 	"github.com/iden3/iden3comm/protocol"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
 )
 
 // CreateClaimRequest struct
@@ -182,12 +184,15 @@ type ClaimsService interface {
 	Revoke(ctx context.Context, id core.DID, nonce uint64, description string) error
 	GetAll(ctx context.Context, did core.DID, filter *ClaimsFilter) ([]*domain.Claim, error)
 	RevokeAllFromConnection(ctx context.Context, connID uuid.UUID, issuerID core.DID) error
-	GetRevocationStatus(ctx context.Context, issuerDID core.DID, nonce uint64) (*verifiable.RevocationStatus, error)
+	GetRevocationStatus(ctx context.Context, issuerDID core.DID, nonce uint64, stateHash string) (*verifiable.RevocationStatus, error)
 	GetByID(ctx context.Context, issID *core.DID, id uuid.UUID) (*domain.Claim, error)
+	GetBySingleID(ctx context.Context, id uuid.UUID) (*domain.Claim, error)
 	Agent(ctx context.Context, req *AgentRequest) (*domain.Agent, error)
 	GetAuthClaim(ctx context.Context, did *core.DID) (*domain.Claim, error)
 	GetAuthClaimForPublishing(ctx context.Context, did *core.DID, state string) (*domain.Claim, error)
 	UpdateClaimsMTPAndState(ctx context.Context, currentState *domain.IdentityState) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByStateIDWithMTPProof(ctx context.Context, did *core.DID, state string) ([]*domain.Claim, error)
+	GetMTProof(ctx context.Context, leafKey *big.Int, root *merkletree.Hash, merkleTreeID int64) (*merkletree.Proof, error)
+	GetMTIDByKey(ctx context.Context, key string) (int64, error)
 }

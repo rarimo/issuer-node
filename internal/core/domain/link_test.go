@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
+	"github.com/rarimo/issuer-node/internal/common"
 )
 
 func TestLink_Status(t *testing.T) {

@@ -661,15 +661,15 @@ make tests;
 
 # Expected Output:
 # ...
-# ?       github.com/polygonid/sh-id-platform/pkg/loaders [no test files]
-# ?       github.com/polygonid/sh-id-platform/pkg/primitive       [no test files]
-# ?       github.com/polygonid/sh-id-platform/pkg/protocol        [no test files]
-# ?       github.com/polygonid/sh-id-platform/pkg/rand    [no test files]
-# ?       github.com/polygonid/sh-id-platform/pkg/reverse_hash    [no test files]
+# ?       github.com/rarimo/issuer-node/pkg/loaders [no test files]
+# ?       github.com/rarimo/issuer-node/pkg/primitive       [no test files]
+# ?       github.com/rarimo/issuer-node/pkg/protocol        [no test files]
+# ?       github.com/rarimo/issuer-node/pkg/rand    [no test files]
+# ?       github.com/rarimo/issuer-node/pkg/reverse_hash    [no test files]
 # === RUN   TestMtSave
 # --- PASS: TestMtSave (0.20s)
 # PASS
-# ok      github.com/polygonid/sh-id-platform/pkg/sync_ttl_map    0.549s
+# ok      github.com/rarimo/issuer-node/pkg/sync_ttl_map    0.549s
 ```
 
 ### Run Lint

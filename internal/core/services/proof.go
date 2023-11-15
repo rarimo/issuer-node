@@ -21,16 +21,16 @@ import (
 	"github.com/iden3/go-schema-processor/verifiable"
 	"github.com/jackc/pgx/v4"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/db"
-	"github.com/polygonid/sh-id-platform/internal/kms"
-	"github.com/polygonid/sh-id-platform/internal/loader"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/internal/repositories"
-	"github.com/polygonid/sh-id-platform/pkg/credentials/signature/circuit/signer"
-	"github.com/polygonid/sh-id-platform/pkg/protocol"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/db"
+	"github.com/rarimo/issuer-node/internal/kms"
+	"github.com/rarimo/issuer-node/internal/loader"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/credentials/signature/circuit/signer"
+	"github.com/rarimo/issuer-node/pkg/protocol"
 )
 
 const (
@@ -300,7 +300,7 @@ func (p *Proof) checkRevocationStatus(ctx context.Context, claim *domain.Claim) 
 	claimRs, err = p.revocationSrv.Status(ctx, cs, issuerDID)
 	if err != nil && errors.Is(err, protocol.ErrStateNotFound) {
 
-		bjp := new(verifiable.BJJSignatureProof2021)
+		bjp := new(common.BJJSignatureProof2021)
 		if err := json.Unmarshal(claim.SignatureProof.Bytes, bjp); err != nil {
 			return nil, fmt.Errorf("failed parse signature proof for get genesys state: %s", err)
 		}
@@ -476,7 +476,7 @@ func (p *Proof) prepareNonMerklizedQuery(ctx context.Context, jsonSchemaURL stri
 	return circuitQuery, nil
 }
 
-func (p *Proof) callNonRevProof(ctx context.Context, issuerData verifiable.IssuerData, issuerDID *core.DID) (circuits.MTProof, error) {
+func (p *Proof) callNonRevProof(ctx context.Context, issuerData common.IssuerData, issuerDID *core.DID) (circuits.MTProof, error) {
 	nonRevProof, err := p.revocationSrv.Status(ctx, issuerData.CredentialStatus, issuerDID)
 
 	if err != nil && errors.Is(err, protocol.ErrStateNotFound) {

@@ -21,17 +21,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/event"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/core/services"
-	"github.com/polygonid/sh-id-platform/internal/db/tests"
-	"github.com/polygonid/sh-id-platform/internal/loader"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/internal/repositories"
-	"github.com/polygonid/sh-id-platform/pkg/pubsub"
-	"github.com/polygonid/sh-id-platform/pkg/reverse_hash"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/event"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/core/services"
+	"github.com/rarimo/issuer-node/internal/db/tests"
+	"github.com/rarimo/issuer-node/internal/loader"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/pubsub"
+	"github.com/rarimo/issuer-node/pkg/reverse_hash"
 )
 
 func TestServer_CreateIdentity(t *testing.T) {
@@ -44,7 +44,8 @@ func TestServer_CreateIdentity(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -172,7 +173,8 @@ func TestServer_RevokeClaim(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -323,7 +325,8 @@ func TestServer_CreateClaim(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -334,6 +337,7 @@ func TestServer_CreateClaim(t *testing.T) {
 	claimsConf := services.ClaimCfg{
 		RHSEnabled: false,
 		Host:       "http://host",
+		UIHost:     "http://host",
 	}
 	pubSub := pubsub.NewMock()
 	claimsService := services.NewClaim(claimsRepo, identityService, mtService, identityStateRepo, schemaLoader, storage, claimsConf, pubSub, ipfsGateway)
@@ -484,7 +488,8 @@ func TestServer_GetIdentities(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -558,7 +563,8 @@ func TestServer_GetClaimQrCode(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -705,7 +711,8 @@ func TestServer_GetClaim(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	connectionsRepository := repositories.NewConnections()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
@@ -879,7 +886,8 @@ func TestServer_GetClaims(t *testing.T) {
 	identityStateRepo := repositories.NewIdentityState()
 	revocationRepository := repositories.NewRevocation()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
 	identityService := services.NewIdentity(keyStore, identityRepo, mtRepo, identityStateRepo, mtService, claimsRepo, revocationRepository, connectionsRepository, storage, rhsp, nil, nil, pubsub.NewMock())
@@ -1205,7 +1213,8 @@ func TestServer_GetRevocationStatus(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo)
+	mtrRepo := repositories.NewMerkleTreeNodesRepository()
+	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
 	revocationRepository := repositories.NewRevocation()
 	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
@@ -1214,6 +1223,7 @@ func TestServer_GetRevocationStatus(t *testing.T) {
 	claimsConf := services.ClaimCfg{
 		RHSEnabled: false,
 		Host:       "https://host.com",
+		UIHost:     "https://host.com",
 	}
 
 	identity, err := identityService.Create(ctx, method, blockchain, network, "http://localhost:3001")

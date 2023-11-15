@@ -86,11 +86,11 @@ run-ui-arm: add-host-url-swagger
 	
 .PHONY: build
 build:
-	COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_FILE="Dockerfile" $(DOCKER_COMPOSE_CMD) build api pending_publisher
+	COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_FILE="Dockerfile" $(DOCKER_COMPOSE_CMD) build api pending_publisher initializer
 
 .PHONY: build-arm
 build-arm:
-	COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_FILE="Dockerfile-arm" $(DOCKER_COMPOSE_CMD) build api pending_publisher
+	COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_FILE="Dockerfile-arm" $(DOCKER_COMPOSE_CMD) build api pending_publisher initializer
 
 .PHONY: build-ui
 build-ui:
@@ -116,10 +116,11 @@ up-test:
 
 .PHONY: clean-vault
 clean-vault:
-	rm -R infrastructure/local/.vault/data/init.out
-	rm -R infrastructure/local/.vault/file/core/
-	rm -R infrastructure/local/.vault/file/logical/
-	rm -R infrastructure/local/.vault/file/sys/
+	rm -R infrastructure/local/.vault/data/init.out || true
+	rm -R infrastructure/local/.vault/file/core/ || true
+	rm -R infrastructure/local/.vault/file/logical/ || true
+	rm -R infrastructure/local/.vault/file/sys/ || true
+	rm -R infrastructure/local/.vault/policies || true
 
 $(BIN)/platformid-migrate:
 	$(BUILD_CMD) ./cmd/migrate
@@ -205,3 +206,15 @@ restart-ui: rm-issuer-imgs up run run-ui
 
 .PHONY: restart-ui-arm
 restart-ui-arm: rm-issuer-imgs up run-arm run-ui-arm
+
+.PHONY: sleep-10
+sleep-10:
+	sleep 10
+
+# usage: make private_key=xxx run-all
+.PHONY: run-all
+run-all: clean-vault up sleep-10 clean-vault add-private-key add-vault-token generate-issuer-did run run-ui
+
+# usage: make private_key=xxx run-all-arm
+.PHONY: run-all-arm
+run-all-arm: clean-vault up sleep-10 clean-vault add-private-key add-vault-token generate-issuer-did run-arm run-ui-arm

@@ -20,7 +20,7 @@ services:
     env_file:
       - ../../.env-api
       - ../../.env-issuer
-    command: sh -c "sleep 4s && ./migrate && ./platform"
+    command: sh -c "sleep 30s && ./migrate && ./platform"
 
   api-ui:
     build:
@@ -58,7 +58,7 @@ services:
     env_file:
       - ../../.env-api
       - ../../.env-issuer
-    command: sh -c "sleep 4s && ./migrate && ./issuer_initializer"
+    command: sh -c "sleep 4s && ./migrate && mkdir did && mkdir did/data && ./issuer_initializer"
 
 networks:
   default:

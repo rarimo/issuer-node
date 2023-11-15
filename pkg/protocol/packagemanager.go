@@ -12,8 +12,8 @@ import (
 	"github.com/iden3/iden3comm"
 	"github.com/iden3/iden3comm/packers"
 
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/pkg/loaders"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/pkg/loaders"
 )
 
 // InitPackageManager initializes the iden3comm package manager
