@@ -11,12 +11,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	core "github.com/iden3/go-iden3-core"
-	"github.com/iden3/go-schema-processor/verifiable"
-	"github.com/iden3/iden3comm"
-	"github.com/iden3/iden3comm/packers"
-	"github.com/iden3/iden3comm/protocol"
-	"github.com/pkg/errors"
+	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-iden3-core/v2/w3c"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
+	"github.com/iden3/iden3comm/v2"
+	"github.com/iden3/iden3comm/v2/packers"
+	"github.com/iden3/iden3comm/v2/protocol"
 
 	"github.com/rarimo/issuer-node/internal/common"
 	"github.com/rarimo/issuer-node/internal/config"
@@ -25,6 +25,7 @@ import (
 	"github.com/rarimo/issuer-node/internal/core/services"
 	"github.com/rarimo/issuer-node/internal/gateways"
 	"github.com/rarimo/issuer-node/internal/health"
+	"github.com/rarimo/issuer-node/internal/kms"
 	"github.com/rarimo/issuer-node/internal/log"
 	"github.com/rarimo/issuer-node/internal/repositories"
 	"github.com/rarimo/issuer-node/pkg/schema"
@@ -36,21 +37,24 @@ type Server struct {
 	cfg              *config.Configuration
 	identityService  ports.IdentityService
 	claimService     ports.ClaimsService
-	usersService     ports.UsersService
+	qrService        ports.QrStoreService
 	publisherGateway ports.Publisher
 	packageManager   *iden3comm.PackageManager
 	health           *health.Status
+	accountService   ports.AccountService
 }
 
 // NewServer is a Server constructor
-func NewServer(cfg *config.Configuration, identityService ports.IdentityService, claimsService ports.ClaimsService, publisherGateway ports.Publisher, packageManager *iden3comm.PackageManager, health *health.Status) *Server {
+func NewServer(cfg *config.Configuration, identityService ports.IdentityService, accountService ports.AccountService, claimsService ports.ClaimsService, qrService ports.QrStoreService, publisherGateway ports.Publisher, packageManager *iden3comm.PackageManager, health *health.Status) *Server {
 	return &Server{
 		cfg:              cfg,
 		identityService:  identityService,
 		claimService:     claimsService,
+		qrService:        qrService,
 		publisherGateway: publisherGateway,
 		packageManager:   packageManager,
 		health:           health,
+		accountService:   accountService,
 	}
 }
 
@@ -81,8 +85,23 @@ func (s *Server) CreateIdentity(ctx context.Context, request CreateIdentityReque
 	method := request.Body.DidMetadata.Method
 	blockchain := request.Body.DidMetadata.Blockchain
 	network := request.Body.DidMetadata.Network
+	keyType := request.Body.DidMetadata.Type
 
-	identity, err := s.identityService.Create(ctx, method, blockchain, network, s.cfg.ServerUrl)
+	if keyType != "BJJ" && keyType != "ETH" {
+		return CreateIdentity400JSONResponse{
+			N400JSONResponse{
+				Message: "Type must be BJJ or ETH",
+			},
+		}, nil
+	}
+
+	identity, err := s.identityService.Create(ctx, s.cfg.ServerUrl, &ports.DIDCreationOptions{
+		Method:                  core.DIDMethod(method),
+		Network:                 core.NetworkID(network),
+		Blockchain:              core.Blockchain(blockchain),
+		KeyType:                 kms.KeyType(keyType),
+		AuthBJJCredentialStatus: verifiable.CredentialStatusType(s.cfg.CredentialStatus.CredentialStatusType),
+	})
 	if err != nil {
 		if errors.Is(err, services.ErrWrongDIDMetada) {
 			return CreateIdentity400JSONResponse{
@@ -100,8 +119,8 @@ func (s *Server) CreateIdentity(ctx context.Context, request CreateIdentityReque
 			BlockNumber:        identity.State.BlockNumber,
 			BlockTimestamp:     identity.State.BlockTimestamp,
 			ClaimsTreeRoot:     identity.State.ClaimsTreeRoot,
-			CreatedAt:          identity.State.CreatedAt,
-			ModifiedAt:         identity.State.ModifiedAt,
+			CreatedAt:          TimeUTC(identity.State.CreatedAt),
+			ModifiedAt:         TimeUTC(identity.State.ModifiedAt),
 			PreviousState:      identity.State.PreviousState,
 			RevocationTreeRoot: identity.State.RevocationTreeRoot,
 			RootOfRoots:        identity.State.RootOfRoots,
@@ -109,12 +128,13 @@ func (s *Server) CreateIdentity(ctx context.Context, request CreateIdentityReque
 			Status:             string(identity.State.Status),
 			TxID:               identity.State.TxID,
 		},
+		Address: identity.Address,
 	}, nil
 }
 
 // CreateClaim is claim creation controller
 func (s *Server) CreateClaim(ctx context.Context, request CreateClaimRequestObject) (CreateClaimResponseObject, error) {
-	did, err := core.ParseDID(request.Identifier)
+	did, err := w3c.ParseDID(request.Identifier)
 	if err != nil {
 		return CreateClaim400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
 	}
@@ -123,7 +143,7 @@ func (s *Server) CreateClaim(ctx context.Context, request CreateClaimRequestObje
 		expiration = common.ToPointer(time.Unix(*request.Body.Expiration, 0))
 	}
 
-	req := ports.NewCreateClaimRequest(did, request.Body.CredentialSchema, request.Body.CredentialSubject, expiration, request.Body.Type, request.Body.Version, request.Body.SubjectPosition, request.Body.MerklizedRootPosition, common.ToPointer(true), common.ToPointer(true), nil, false)
+	req := ports.NewCreateClaimRequest(did, request.Body.CredentialSchema, request.Body.CredentialSubject, expiration, request.Body.Type, request.Body.Version, request.Body.SubjectPosition, request.Body.MerklizedRootPosition, common.ToPointer(true), common.ToPointer(true), nil, false, verifiable.CredentialStatusType(s.cfg.CredentialStatus.CredentialStatusType))
 
 	resp, err := s.claimService.Save(ctx, req)
 	if err != nil {
@@ -148,6 +168,9 @@ func (s *Server) CreateClaim(ctx context.Context, request CreateClaimRequestObje
 		if errors.Is(err, services.ErrLoadingSchema) {
 			return CreateClaim400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
 		}
+		if errors.Is(err, services.ErrAssigningMTPProof) {
+			return CreateClaim400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
+		}
 		return CreateClaim500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
 	}
 	return CreateClaim201JSONResponse{Id: resp.ID.String()}, nil
@@ -155,7 +178,7 @@ func (s *Server) CreateClaim(ctx context.Context, request CreateClaimRequestObje
 
 // RevokeClaim is the revocation claim controller
 func (s *Server) RevokeClaim(ctx context.Context, request RevokeClaimRequestObject) (RevokeClaimResponseObject, error) {
-	did, err := core.ParseDID(request.Identifier)
+	did, err := w3c.ParseDID(request.Identifier)
 	if err != nil {
 		log.Warn(ctx, "revoke claim invalid did", "err", err, "req", request)
 		return RevokeClaim400JSONResponse{N400JSONResponse{err.Error()}}, nil
@@ -177,7 +200,7 @@ func (s *Server) RevokeClaim(ctx context.Context, request RevokeClaimRequestObje
 
 // GetRevocationStatus is the controller to get revocation status
 func (s *Server) GetRevocationStatus(ctx context.Context, request GetRevocationStatusRequestObject) (GetRevocationStatusResponseObject, error) {
-	issuerDID, err := core.ParseDID(request.Identifier)
+	issuerDID, err := w3c.ParseDID(request.Identifier)
 	if err != nil {
 		return GetRevocationStatus500JSONResponse{N500JSONResponse{
 			Message: err.Error(),
@@ -233,7 +256,7 @@ func (s *Server) GetClaim(ctx context.Context, request GetClaimRequestObject) (G
 		return GetClaim400JSONResponse{N400JSONResponse{"invalid did, cannot be empty"}}, nil
 	}
 
-	did, err := core.ParseDID(request.Identifier)
+	did, err := w3c.ParseDID(request.Identifier)
 	if err != nil {
 		return GetClaim400JSONResponse{N400JSONResponse{"invalid did"}}, nil
 	}
@@ -269,7 +292,7 @@ func (s *Server) GetClaims(ctx context.Context, request GetClaimsRequestObject) 
 		return GetClaims400JSONResponse{N400JSONResponse{"invalid did, cannot be empty"}}, nil
 	}
 
-	did, err := core.ParseDID(request.Identifier)
+	did, err := w3c.ParseDID(request.Identifier)
 	if err != nil {
 		return GetClaims400JSONResponse{N400JSONResponse{"invalid did"}}, nil
 	}
@@ -301,12 +324,13 @@ func (s *Server) GetClaims(ctx context.Context, request GetClaimsRequestObject) 
 
 // GetClaimQrCode returns a GetClaimQrCodeResponseObject that can be used with any QR generator to create a QR and
 // scan it with polygon wallet to accept the claim
+// TODO: this should be converted to a QR link
 func (s *Server) GetClaimQrCode(ctx context.Context, request GetClaimQrCodeRequestObject) (GetClaimQrCodeResponseObject, error) {
 	if request.Identifier == "" {
 		return GetClaimQrCode400JSONResponse{N400JSONResponse{"invalid did, cannot be empty"}}, nil
 	}
 
-	did, err := core.ParseDID(request.Identifier)
+	did, err := w3c.ParseDID(request.Identifier)
 	if err != nil {
 		return GetClaimQrCode400JSONResponse{N400JSONResponse{"invalid did"}}, nil
 	}
@@ -455,7 +479,7 @@ func (s *Server) Agent(ctx context.Context, request AgentRequestObject) (AgentRe
 
 // PublishIdentityState - publish identity state on chain
 func (s *Server) PublishIdentityState(ctx context.Context, request PublishIdentityStateRequestObject) (PublishIdentityStateResponseObject, error) {
-	did, err := core.ParseDID(request.Identifier)
+	did, err := w3c.ParseDID(request.Identifier)
 	if err != nil {
 		return PublishIdentityState400JSONResponse{N400JSONResponse{"invalid did"}}, nil
 	}
@@ -479,7 +503,7 @@ func (s *Server) PublishIdentityState(ctx context.Context, request PublishIdenti
 
 // RetryPublishState - retry to publish the current state if it failed previously.
 func (s *Server) RetryPublishState(ctx context.Context, request RetryPublishStateRequestObject) (RetryPublishStateResponseObject, error) {
-	did, err := core.ParseDID(request.Identifier)
+	did, err := w3c.ParseDID(request.Identifier)
 	if err != nil {
 		return RetryPublishState400JSONResponse{N400JSONResponse{"invalid did"}}, nil
 	}
@@ -501,18 +525,82 @@ func (s *Server) RetryPublishState(ctx context.Context, request RetryPublishStat
 	}, nil
 }
 
-// AddUser - add login and password to the database
-func (s *Server) AddUser(ctx context.Context, request AddUserRequestObject) (AddUserResponseObject, error) {
-	did, err := core.ParseDID(request.Body.Did)
+// GetQrFromStore is the controller to get qr bodies
+func (s *Server) GetQrFromStore(ctx context.Context, request GetQrFromStoreRequestObject) (GetQrFromStoreResponseObject, error) {
+	if request.Params.Id == nil {
+		log.Warn(ctx, "qr store. Missing id parameter")
+		return GetQrFromStore400JSONResponse{N400JSONResponse{"id is required"}}, nil
+	}
+	body, err := s.qrService.Find(ctx, *request.Params.Id)
 	if err != nil {
-		log.Error(context.Background(), "failed to parse did", err)
-		return AddUser500JSONResponse{N500JSONResponse{"invalid did"}}, nil
+		log.Error(ctx, "qr store. Finding qr", "err", err, "id", *request.Params.Id)
+		return GetQrFromStore500JSONResponse{N500JSONResponse{"error looking for qr body"}}, nil
 	}
-	if err := s.usersService.AddUser(ctx, request.Body.Login, request.Body.Password, *did); err != nil {
-		log.Error(context.Background(), "failed to add user", err)
-		return AddUser500JSONResponse{N500JSONResponse{"failed to add user"}}, nil
+	return NewQrContentResponse(body), nil
+}
+
+// GetIdentityDetails is the controller to get identity details
+func (s *Server) GetIdentityDetails(ctx context.Context, request GetIdentityDetailsRequestObject) (GetIdentityDetailsResponseObject, error) {
+	userDID, err := w3c.ParseDID(request.Identifier)
+	if err != nil {
+		log.Error(ctx, "get identity details. Parsing did", "err", err)
+		return GetIdentityDetails400JSONResponse{
+			N400JSONResponse{
+				Message: "invalid did",
+			},
+		}, err
 	}
-	return AddUser200JSONResponse{}, nil
+
+	identity, err := s.identityService.GetByDID(ctx, *userDID)
+	if err != nil {
+		log.Error(ctx, "get identity details. Getting identity", "err", err)
+		return GetIdentityDetails500JSONResponse{
+			N500JSONResponse{
+				Message: err.Error(),
+			},
+		}, err
+	}
+
+	if identity.KeyType == string(kms.KeyTypeEthereum) {
+		did, err := w3c.ParseDID(identity.Identifier)
+		if err != nil {
+			log.Error(ctx, "get identity details. Parsing did", "err", err)
+			return GetIdentityDetails400JSONResponse{N400JSONResponse{Message: "invalid did"}}, nil
+		}
+		balance, err := s.accountService.GetBalanceByDID(ctx, did)
+		if err != nil {
+			log.Error(ctx, "get identity details. Getting balance", "err", err)
+			return GetIdentityDetails500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
+		}
+		identity.Balance = balance
+	}
+
+	response := GetIdentityDetails200JSONResponse{
+		Identifier: &identity.Identifier,
+		State: &IdentityState{
+			BlockNumber:        identity.State.BlockNumber,
+			BlockTimestamp:     identity.State.BlockTimestamp,
+			ClaimsTreeRoot:     identity.State.ClaimsTreeRoot,
+			CreatedAt:          TimeUTC(identity.State.CreatedAt),
+			ModifiedAt:         TimeUTC(identity.State.ModifiedAt),
+			PreviousState:      identity.State.PreviousState,
+			RevocationTreeRoot: identity.State.RevocationTreeRoot,
+			RootOfRoots:        identity.State.RootOfRoots,
+			State:              identity.State.State,
+			Status:             string(identity.State.Status),
+			TxID:               identity.State.TxID,
+		},
+	}
+
+	if identity.Address != nil && *identity.Address != "" {
+		response.Address = identity.Address
+	}
+
+	if identity.Balance != nil {
+		response.Balance = common.ToPointer(identity.Balance.String())
+	}
+
+	return response, nil
 }
 
 // RegisterStatic add method to the mux that are not documented in the API.
@@ -532,6 +620,13 @@ func toGetClaims200Response(claims []*verifiable.W3CCredential) GetClaims200JSON
 }
 
 func toGetClaim200Response(claim *verifiable.W3CCredential) GetClaimResponse {
+	var claimExpiration, claimIssuanceDate *TimeUTC
+	if claim.Expiration != nil {
+		claimExpiration = common.ToPointer(TimeUTC(*claim.Expiration))
+	}
+	if claim.IssuanceDate != nil {
+		claimIssuanceDate = common.ToPointer(TimeUTC(*claim.IssuanceDate))
+	}
 	return GetClaimResponse{
 		Context: claim.Context,
 		CredentialSchema: CredentialSchema{
@@ -540,9 +635,9 @@ func toGetClaim200Response(claim *verifiable.W3CCredential) GetClaimResponse {
 		},
 		CredentialStatus:  claim.CredentialStatus,
 		CredentialSubject: claim.CredentialSubject,
-		Expiration:        claim.Expiration,
+		Expiration:        claimExpiration,
 		Id:                claim.ID,
-		IssuanceDate:      claim.IssuanceDate,
+		IssuanceDate:      claimIssuanceDate,
 		Issuer:            claim.Issuer,
 		Proof:             claim.Proof,
 		Type:              claim.Type,

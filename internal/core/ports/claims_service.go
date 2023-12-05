@@ -4,15 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/iden3/go-merkletree-sql/v2"
 	"math/big"
 	"time"
 
 	"github.com/google/uuid"
-	core "github.com/iden3/go-iden3-core"
-	"github.com/iden3/go-schema-processor/verifiable"
-	comm "github.com/iden3/iden3comm"
-	"github.com/iden3/iden3comm/protocol"
+	"github.com/iden3/go-iden3-core/v2/w3c"
+	"github.com/iden3/go-merkletree-sql/v2"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
+	comm "github.com/iden3/iden3comm/v2"
+	"github.com/iden3/iden3comm/v2/protocol"
 
 	"github.com/rarimo/issuer-node/internal/common"
 	"github.com/rarimo/issuer-node/internal/core/domain"
@@ -20,7 +20,7 @@ import (
 
 // CreateClaimRequest struct
 type CreateClaimRequest struct {
-	DID                   *core.DID
+	DID                   *w3c.DID
 	Schema                string
 	CredentialSubject     map[string]any
 	Expiration            *time.Time
@@ -32,14 +32,15 @@ type CreateClaimRequest struct {
 	MTProof               bool
 	LinkID                *uuid.UUID
 	SingleIssuer          bool
+	CredentialStatusType  verifiable.CredentialStatusType
 }
 
 // AgentRequest struct
 type AgentRequest struct {
 	Body      json.RawMessage
 	ThreadID  string
-	IssuerDID *core.DID
-	UserDID   *core.DID
+	IssuerDID *w3c.DID
+	UserDID   *w3c.DID
 	ClaimID   uuid.UUID
 	Typ       comm.MediaType
 	Type      comm.ProtocolMessage
@@ -93,7 +94,7 @@ func NewClaimsFilter(schemaHash, schemaType, subject, queryField, queryValue *st
 }
 
 // NewCreateClaimRequest returns a new claim object with the given parameters
-func NewCreateClaimRequest(did *core.DID, credentialSchema string, credentialSubject map[string]any, expiration *time.Time, typ string, cVersion *uint32, subjectPos *string, merklizedRootPosition *string, sigProof *bool, mtProof *bool, linkID *uuid.UUID, singleIssuer bool) *CreateClaimRequest {
+func NewCreateClaimRequest(did *w3c.DID, credentialSchema string, credentialSubject map[string]any, expiration *time.Time, typ string, cVersion *uint32, subjectPos *string, merklizedRootPosition *string, sigProof *bool, mtProof *bool, linkID *uuid.UUID, singleIssuer bool, credentialStatusType verifiable.CredentialStatusType) *CreateClaimRequest {
 	if sigProof == nil {
 		sigProof = common.ToPointer(false)
 	}
@@ -125,7 +126,7 @@ func NewCreateClaimRequest(did *core.DID, credentialSchema string, credentialSub
 
 	req.LinkID = linkID
 	req.SingleIssuer = singleIssuer
-
+	req.CredentialStatusType = credentialStatusType
 	return req
 }
 
@@ -135,7 +136,7 @@ func NewAgentRequest(basicMessage *comm.BasicMessage) (*AgentRequest, error) {
 		return nil, fmt.Errorf("'to' field cannot be empty")
 	}
 
-	toDID, err := core.ParseDID(basicMessage.To)
+	toDID, err := w3c.ParseDID(basicMessage.To)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +145,7 @@ func NewAgentRequest(basicMessage *comm.BasicMessage) (*AgentRequest, error) {
 		return nil, fmt.Errorf("'from' field cannot be empty")
 	}
 
-	fromDID, err := core.ParseDID(basicMessage.From)
+	fromDID, err := w3c.ParseDID(basicMessage.From)
 	if err != nil {
 		return nil, err
 	}
@@ -181,18 +182,19 @@ func NewAgentRequest(basicMessage *comm.BasicMessage) (*AgentRequest, error) {
 type ClaimsService interface {
 	Save(ctx context.Context, claimReq *CreateClaimRequest) (*domain.Claim, error)
 	CreateCredential(ctx context.Context, req *CreateClaimRequest) (*domain.Claim, error)
-	Revoke(ctx context.Context, id core.DID, nonce uint64, description string) error
-	GetAll(ctx context.Context, did core.DID, filter *ClaimsFilter) ([]*domain.Claim, error)
-	RevokeAllFromConnection(ctx context.Context, connID uuid.UUID, issuerID core.DID) error
-	GetRevocationStatus(ctx context.Context, issuerDID core.DID, nonce uint64, stateHash string) (*verifiable.RevocationStatus, error)
-	GetByID(ctx context.Context, issID *core.DID, id uuid.UUID) (*domain.Claim, error)
+	Revoke(ctx context.Context, id w3c.DID, nonce uint64, description string) error
+	GetAll(ctx context.Context, did w3c.DID, filter *ClaimsFilter) ([]*domain.Claim, error)
+	RevokeAllFromConnection(ctx context.Context, connID uuid.UUID, issuerID w3c.DID) error
+	GetRevocationStatus(ctx context.Context, issuerDID w3c.DID, nonce uint64, stateHash string) (*verifiable.RevocationStatus, error)
+	GetByID(ctx context.Context, issID *w3c.DID, id uuid.UUID) (*domain.Claim, error)
 	GetBySingleID(ctx context.Context, id uuid.UUID) (*domain.Claim, error)
+	GetCredentialQrCode(ctx context.Context, issID *w3c.DID, id uuid.UUID, hostURL string) (string, string, error)
 	Agent(ctx context.Context, req *AgentRequest) (*domain.Agent, error)
-	GetAuthClaim(ctx context.Context, did *core.DID) (*domain.Claim, error)
-	GetAuthClaimForPublishing(ctx context.Context, did *core.DID, state string) (*domain.Claim, error)
+	GetAuthClaim(ctx context.Context, did *w3c.DID) (*domain.Claim, error)
+	GetAuthClaimForPublishing(ctx context.Context, did *w3c.DID, state string) (*domain.Claim, error)
 	UpdateClaimsMTPAndState(ctx context.Context, currentState *domain.IdentityState) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	GetByStateIDWithMTPProof(ctx context.Context, did *core.DID, state string) ([]*domain.Claim, error)
+	GetByStateIDWithMTPProof(ctx context.Context, did *w3c.DID, state string) ([]*domain.Claim, error)
 	GetMTProof(ctx context.Context, leafKey *big.Int, root *merkletree.Hash, merkleTreeID int64) (*merkletree.Proof, error)
 	GetMTIDByKey(ctx context.Context, key string) (int64, error)
 }
