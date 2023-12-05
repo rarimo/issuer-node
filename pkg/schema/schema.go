@@ -131,7 +131,7 @@ func Process(ctx context.Context, ld loader.Loader, credentialType string, crede
 
 	claim, err := pr.ParseClaim(ctx, credential, credentialType, schema, options)
 	if err != nil {
-		log.Error(ctx, "failed to parse claim", "err", err)
+		log.Error(ctx, "error parsing claim", "err", err.Error())
 		return nil, ErrParseClaim
 	}
 	return claim, nil

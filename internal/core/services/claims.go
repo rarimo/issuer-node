@@ -66,6 +66,7 @@ type claim struct {
 	loaderFactory           loader.Factory
 	publisher               pubsub.Publisher
 	ipfsClient              *shell.Shell
+	ipfsGatewayURL          string
 }
 
 // NewClaim creates a new claim service
@@ -87,6 +88,7 @@ func NewClaim(repo ports.ClaimsRepository, idenSrv ports.IdentityService, mtServ
 	}
 	if ipfsGatewayURL != "" {
 		s.ipfsClient = shell.NewShell(ipfsGatewayURL)
+		s.ipfsGatewayURL = ipfsGatewayURL
 	}
 	return s
 }
@@ -169,9 +171,8 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 		SubjectPosition:       req.SubjectPos,
 		Updatable:             false,
 	}
-	if c.ipfsClient != nil {
-		opts.MerklizerOpts = []merklize.MerklizeOption{merklize.WithIPFSClient(c.ipfsClient)}
-	}
+
+	opts.MerklizerOpts = []merklize.MerklizeOption{merklize.WithDocumentLoader(loader.NewW3CDocumentLoader(c.ipfsClient, c.ipfsGatewayURL))}
 
 	coreClaim, err := schemaPkg.Process(ctx, c.loaderFactory(req.Schema), credentialType, vc, opts)
 	if err != nil {
