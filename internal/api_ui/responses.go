@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/iden3/go-schema-processor/v2/verifiable"
-	openapitypes "github.com/oapi-codegen/runtime/types"
 
 	"github.com/rarimo/issuer-node/internal/common"
 	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/timeapi"
 	"github.com/rarimo/issuer-node/pkg/schema"
 )
 
@@ -86,18 +86,19 @@ func credentialResponse(w3c *verifiable.W3CCredential, credential *domain.Claim)
 	proofs := getProofs(credential)
 
 	return Credential{
-		CredentialSubject: w3c.CredentialSubject,
-		CreatedAt:         TimeUTC(*w3c.IssuanceDate),
-		Expired:           expired,
-		ExpiresAt:         expiresAt,
-		Id:                credential.ID,
-		ProofTypes:        proofs,
-		RevNonce:          uint64(credential.RevNonce),
-		Revoked:           credential.Revoked,
-		SchemaHash:        credential.SchemaHash,
-		SchemaType:        shortType(credential.SchemaType),
-		SchemaUrl:         credential.SchemaURL,
-		UserID:            credential.OtherIdentifier,
+		CredentialSubject:     w3c.CredentialSubject,
+		CreatedAt:             TimeUTC(*w3c.IssuanceDate),
+		Expired:               expired,
+		ExpiresAt:             expiresAt,
+		Id:                    credential.ID,
+		ProofTypes:            proofs,
+		RevNonce:              uint64(credential.RevNonce),
+		Revoked:               credential.Revoked,
+		SchemaHash:            credential.SchemaHash,
+		SchemaType:            shortType(credential.SchemaType),
+		SchemaUrl:             credential.SchemaURL,
+		UserID:                credential.OtherIdentifier,
+		SchemaTypeDescription: credential.SchemaTypeDescription,
 	}
 }
 
@@ -223,9 +224,10 @@ func deleteConnection500Response(deleteCredentials bool, revokeCredentials bool)
 
 func getLinkResponse(link domain.Link) Link {
 	hash, _ := link.Schema.Hash.MarshalText()
-	var date *openapitypes.Date
+	var credentialExpiration *timeapi.Time
 	if link.CredentialExpiration != nil {
-		date = &openapitypes.Date{Time: *link.CredentialExpiration}
+		t := timeapi.Time(*link.CredentialExpiration)
+		credentialExpiration = common.ToPointer(t.UTCZeroHHMMSS())
 	}
 
 	var validUntil *TimeUTC
@@ -246,7 +248,7 @@ func getLinkResponse(link domain.Link) Link {
 		ProofTypes:           getLinkProofs(link),
 		CreatedAt:            TimeUTC(link.CreatedAt),
 		Expiration:           validUntil,
-		CredentialExpiration: date,
+		CredentialExpiration: credentialExpiration,
 	}
 }
 

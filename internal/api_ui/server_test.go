@@ -116,6 +116,109 @@ func TestServer_AuthCallback(t *testing.T) {
 	}
 }
 
+func TestServer_GetAuthenticationConnection(t *testing.T) {
+	connectionRepository := repositories.NewConnections()
+	qrService := services.NewQrStoreService(cachex)
+	connectionsService := services.NewConnection(connectionRepository, storage)
+	server := NewServer(&cfg, NewIdentityMock(), NewClaimsMock(), NewSchemaMock(), connectionsService, NewLinkMock(), qrService, NewPublisherMock(), NewPackageManagerMock(), nil)
+	issuerDID, err := w3c.ParseDID("did:polygonid:polygon:mumbai:2qE1BZ7gcmEoP2KppvFPCZqyzyb5tK9T6Gec5HFANQ")
+	require.NoError(t, err)
+	userDID, err := w3c.ParseDID("did:polygonid:polygon:mumbai:2qKDJmySKNi4GD4vYdqfLb37MSTSijg77NoRZaKfDX")
+	require.NoError(t, err)
+	server.cfg.APIUI.IssuerDID = *issuerDID
+	server.cfg.APIUI.ServerURL = "https://testing.env"
+	handler := getHandler(context.Background(), server)
+
+	fixture := tests.NewFixture(storage)
+	conn := &domain.Connection{
+		ID:         uuid.New(),
+		IssuerDID:  *issuerDID,
+		UserDID:    *userDID,
+		CreatedAt:  time.Now(),
+		ModifiedAt: time.Now(),
+	}
+	fixture.CreateConnection(t, conn)
+	require.NoError(t, err)
+
+	sessionID := uuid.New()
+	fixture.CreateUserAuthentication(t, conn.ID, sessionID, conn.CreatedAt)
+
+	type expected struct {
+		httpCode int
+		message  string
+		response GetAuthenticationConnection200JSONResponse
+	}
+	type testConfig struct {
+		name     string
+		auth     func() (string, string)
+		id       uuid.UUID
+		expected expected
+	}
+
+	for _, tc := range []testConfig{
+		{
+			name: "Not authorized",
+			auth: authWrong,
+			id:   uuid.New(),
+			expected: expected{
+				httpCode: http.StatusUnauthorized,
+			},
+		},
+		{
+			name: "Session Not found",
+			auth: authOk,
+			id:   uuid.New(),
+			expected: expected{
+				httpCode: http.StatusNotFound,
+				message:  services.ErrConnectionDoesNotExist.Error(),
+			},
+		},
+		{
+			name: "Happy path. Existing connection",
+			auth: authOk,
+			id:   sessionID,
+			expected: expected{
+				httpCode: http.StatusOK,
+				response: GetAuthenticationConnection200JSONResponse{
+					Connection: AuthenticationConnection{
+						Id:         conn.ID.String(),
+						IssuerID:   conn.IssuerDID.String(),
+						CreatedAt:  TimeUTC(conn.CreatedAt),
+						ModifiedAt: TimeUTC(conn.ModifiedAt),
+						UserID:     conn.UserDID.String(),
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			url := fmt.Sprintf("/v1/authentication/sessions/%s", tc.id.String())
+			req, err := http.NewRequest("GET", url, nil)
+			require.NoError(t, err)
+			req.SetBasicAuth(tc.auth())
+
+			handler.ServeHTTP(rr, req)
+
+			require.Equal(t, tc.expected.httpCode, rr.Code)
+			switch tc.expected.httpCode {
+			case http.StatusOK:
+				var response GetAuthenticationConnection200JSONResponse
+				require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+				assert.Equal(t, tc.expected.response.Connection.Id, response.Connection.Id)
+				assert.Equal(t, tc.expected.response.Connection.IssuerID, response.Connection.IssuerID)
+				assert.InDelta(t, time.Time(tc.expected.response.Connection.CreatedAt).Unix(), time.Time(response.Connection.CreatedAt).Unix(), 100)
+				assert.InDelta(t, time.Time(tc.expected.response.Connection.ModifiedAt).Unix(), time.Time(response.Connection.ModifiedAt).Unix(), 100)
+				assert.Equal(t, tc.expected.response.Connection.UserID, response.Connection.UserID)
+			case http.StatusNotFound:
+				var response GetAuthenticationConnection404JSONResponse
+				assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+				assert.Equal(t, tc.expected.message, response.Message)
+			}
+		})
+	}
+}
+
 func TestServer_AuthQRCode(t *testing.T) {
 	identityRepo := repositories.NewIdentity()
 	claimsRepo := repositories.NewClaims()
@@ -173,8 +276,11 @@ func TestServer_AuthQRCode(t *testing.T) {
 			require.Equal(t, tc.expected.httpCode, rr.Code)
 			switch tc.expected.httpCode {
 			case http.StatusOK:
-
-				qrLink := checkQRfetchURL(t, rr.Body.String())
+				var resp AuthQRCode200JSONResponse
+				require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+				require.NotEmpty(t, resp.QrCodeLink)
+				require.NotEmpty(t, resp.SessionID)
+				qrLink := checkQRfetchURL(t, resp.QrCodeLink)
 
 				// Now let's fetch the original QR using the url
 				rr := httptest.NewRecorder()
@@ -3040,11 +3146,11 @@ func TestServer_GetLink(t *testing.T) {
 	tomorrow := time.Now().Add(24 * time.Hour)
 	yesterday := time.Now().Add(-24 * time.Hour)
 
-	link, err := linkService.Save(ctx, *did, common.ToPointer(10), &tomorrow, importedSchema.ID, nil, true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
+	link, err := linkService.Save(ctx, *did, common.ToPointer(10), &tomorrow, importedSchema.ID, common.ToPointer(tomorrow), true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
 	require.NoError(t, err)
 	hash, _ := link.Schema.Hash.MarshalText()
 
-	linkExpired, err := linkService.Save(ctx, *did, common.ToPointer(10), &yesterday, importedSchema.ID, nil, true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
+	linkExpired, err := linkService.Save(ctx, *did, common.ToPointer(10), &yesterday, importedSchema.ID, common.ToPointer(tomorrow), true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
 	require.NoError(t, err)
 
 	handler := getHandler(ctx, server)
@@ -3086,18 +3192,19 @@ func TestServer_GetLink(t *testing.T) {
 			expected: expected{
 				httpCode: http.StatusOK,
 				response: GetLink200JSONResponse{
-					Active:            link.Active,
-					CredentialSubject: CredentialSubject{"birthday": 19791109, "documentType": 12, "type": schemaType, "id": "did:polygonid:polygon:mumbai:2qDDDKmo436EZGCBAvkqZjADYoNRJszkG7UymZeCHQ"},
-					Expiration:        common.ToPointer(TimeUTC(*link.ValidUntil)),
-					Id:                link.ID,
-					IssuedClaims:      link.IssuedClaims,
-					MaxIssuance:       link.MaxIssuance,
-					SchemaType:        link.Schema.Type,
-					SchemaUrl:         link.Schema.URL,
-					Status:            LinkStatusActive,
-					ProofTypes:        []string{"SparseMerkleTreeProof", "BJJSignature2021"},
-					CreatedAt:         TimeUTC(link.CreatedAt),
-					SchemaHash:        string(hash),
+					Active:               link.Active,
+					CredentialSubject:    CredentialSubject{"birthday": 19791109, "documentType": 12, "type": schemaType, "id": "did:polygonid:polygon:mumbai:2qDDDKmo436EZGCBAvkqZjADYoNRJszkG7UymZeCHQ"},
+					Expiration:           common.ToPointer(TimeUTC(*link.ValidUntil)),
+					Id:                   link.ID,
+					IssuedClaims:         link.IssuedClaims,
+					MaxIssuance:          link.MaxIssuance,
+					SchemaType:           link.Schema.Type,
+					SchemaUrl:            link.Schema.URL,
+					Status:               LinkStatusActive,
+					ProofTypes:           []string{"SparseMerkleTreeProof", "BJJSignature2021"},
+					CreatedAt:            TimeUTC(link.CreatedAt),
+					SchemaHash:           string(hash),
+					CredentialExpiration: common.ToPointer(TimeUTC(tomorrow)),
 				},
 			},
 		},
@@ -3108,16 +3215,17 @@ func TestServer_GetLink(t *testing.T) {
 			expected: expected{
 				httpCode: http.StatusOK,
 				response: GetLink200JSONResponse{
-					Active:            linkExpired.Active,
-					CredentialSubject: CredentialSubject{"birthday": 19791109, "documentType": 12, "type": schemaType, "id": "did:polygonid:polygon:mumbai:2qDDDKmo436EZGCBAvkqZjADYoNRJszkG7UymZeCHQ"},
-					Expiration:        common.ToPointer(TimeUTC(*linkExpired.ValidUntil)),
-					Id:                linkExpired.ID,
-					IssuedClaims:      linkExpired.IssuedClaims,
-					MaxIssuance:       linkExpired.MaxIssuance,
-					SchemaType:        linkExpired.Schema.Type,
-					SchemaUrl:         linkExpired.Schema.URL,
-					Status:            LinkStatusExceeded,
-					ProofTypes:        []string{"SparseMerkleTreeProof", "BJJSignature2021"},
+					Active:               linkExpired.Active,
+					CredentialSubject:    CredentialSubject{"birthday": 19791109, "documentType": 12, "type": schemaType, "id": "did:polygonid:polygon:mumbai:2qDDDKmo436EZGCBAvkqZjADYoNRJszkG7UymZeCHQ"},
+					Expiration:           common.ToPointer(TimeUTC(*linkExpired.ValidUntil)),
+					Id:                   linkExpired.ID,
+					IssuedClaims:         linkExpired.IssuedClaims,
+					MaxIssuance:          linkExpired.MaxIssuance,
+					SchemaType:           linkExpired.Schema.Type,
+					SchemaUrl:            linkExpired.Schema.URL,
+					Status:               LinkStatusExceeded,
+					ProofTypes:           []string{"SparseMerkleTreeProof", "BJJSignature2021"},
+					CredentialExpiration: nil,
 				},
 			},
 		},
@@ -3155,6 +3263,11 @@ func TestServer_GetLink(t *testing.T) {
 				assert.Equal(t, expected.Active, response.Active)
 				assert.InDelta(t, time.Time(*expected.Expiration).UnixMilli(), time.Time(*response.Expiration).UnixMilli(), 1000)
 				assert.Equal(t, len(expected.ProofTypes), len(response.ProofTypes))
+				if expected.CredentialExpiration != nil {
+					tt := time.Time(*expected.CredentialExpiration)
+					tt00 := common.ToPointer(TimeUTC(time.Date(tt.Year(), tt.Month(), tt.Day(), 0, 0, 0, 0, time.UTC)))
+					assert.Equal(t, tt00.String(), response.CredentialExpiration.String())
+				}
 			case http.StatusNotFound:
 				var response GetLink404JSONResponse
 				require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
@@ -3209,19 +3322,19 @@ func TestServer_GetAllLinks(t *testing.T) {
 	tomorrow := time.Now().Add(24 * time.Hour)
 	yesterday := time.Now().Add(-24 * time.Hour)
 
-	link1, err := linkService.Save(ctx, *did, common.ToPointer(10), &tomorrow, importedSchema.ID, nil, true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
+	link1, err := linkService.Save(ctx, *did, common.ToPointer(10), &tomorrow, importedSchema.ID, &tomorrow, true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
 	require.NoError(t, err)
 	linkActive := getLinkResponse(*link1)
 
 	time.Sleep(10 * time.Millisecond)
 
-	link2, err := linkService.Save(ctx, *did, common.ToPointer(10), &yesterday, importedSchema.ID, nil, true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
+	link2, err := linkService.Save(ctx, *did, common.ToPointer(10), &yesterday, importedSchema.ID, &tomorrow, true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
 	require.NoError(t, err)
 	linkExpired := getLinkResponse(*link2)
 	require.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
-	link3, err := linkService.Save(ctx, *did, common.ToPointer(10), &yesterday, importedSchema.ID, nil, true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
+	link3, err := linkService.Save(ctx, *did, common.ToPointer(10), &yesterday, importedSchema.ID, &tomorrow, true, true, domain.CredentialSubject{"birthday": 19791109, "documentType": 12})
 	link3.Active = false
 	require.NoError(t, err)
 	require.NoError(t, linkService.Activate(ctx, *did, link3.ID, false))
@@ -3369,6 +3482,8 @@ func TestServer_GetAllLinks(t *testing.T) {
 						require.NoError(t, err)
 						assert.Equal(t, tcCred, respCred)
 						assert.InDelta(t, time.Time(*tc.expected.response[i].Expiration).UnixMilli(), time.Time(*resp.Expiration).UnixMilli(), 1000)
+						expectCredExpiration := common.ToPointer(TimeUTC(time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, time.UTC)))
+						assert.Equal(t, expectCredExpiration.String(), resp.CredentialExpiration.String())
 					}
 				}
 			case http.StatusBadRequest:

@@ -33,6 +33,7 @@ type CreateClaimRequest struct {
 	LinkID                *uuid.UUID
 	SingleIssuer          bool
 	CredentialStatusType  verifiable.CredentialStatusType
+	SchemaTypeDescription string
 }
 
 // AgentRequest struct

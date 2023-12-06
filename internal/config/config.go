@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -109,6 +110,8 @@ type KeyStore struct {
 	Address              string `tip:"Keystore address"`
 	Token                string `tip:"Token"`
 	PluginIden3MountPath string `tip:"PluginIden3MountPath"`
+	UserPassEnabled      bool   `tip:"UserPassEnabled"`
+	UserPassPassword     string `tip:"UserPassPassword"`
 }
 
 // Log holds runtime configurations
@@ -271,6 +274,23 @@ func CheckDID(ctx context.Context, cfg *Configuration, vaultCli *api.Client) err
 			return err
 		}
 		cfg.APIUI.IssuerDID = *issuerDID
+	} else {
+		log.Info(ctx, "Issuer did loaded from configuration file", "did", cfg.APIUI.Issuer)
+		didInVault, err := providers.GetDID(ctx, vaultCli)
+		if err != nil {
+			if !errors.Is(err, providers.DidNotFound) {
+				log.Error(ctx, "cannot get issuer did from vault", "error", err)
+				return err
+			}
+			log.Info(ctx, "did not present in vault")
+		}
+
+		if didInVault != cfg.APIUI.Issuer {
+			log.Info(ctx, "issuer did in vault is different from issuer did in configuration file. Saving did in vault")
+			if err := providers.SaveDID(ctx, vaultCli, cfg.APIUI.Issuer); err != nil {
+				log.Error(ctx, "cannot save issuer did in vault", "error", err)
+			}
+		}
 	}
 	return nil
 }
@@ -339,21 +359,10 @@ func Load(fileName string) (*Configuration, error) {
 func VaultTest() KeyStore {
 	return KeyStore{
 		Address:              "http://localhost:8200",
-		Token:                lookupVaultTestToken(),
 		PluginIden3MountPath: "iden3",
+		UserPassEnabled:      true,
+		UserPassPassword:     "issuernodepwd",
 	}
-}
-
-func lookupVaultTestToken() string {
-	var err error
-	token, ok := os.LookupEnv("VAULT_TEST_TOKEN")
-	if !ok {
-		token, err = lookupVaultTokenFromFile("infrastructure/local/.vault/data/init.out")
-		if err != nil {
-			return ""
-		}
-	}
-	return token
 }
 
 // lookupVaultTokenFromFile parses the vault config file looking for the hvs token and returns it
