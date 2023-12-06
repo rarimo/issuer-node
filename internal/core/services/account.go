@@ -9,10 +9,10 @@ import (
 	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-iden3-core/v2/w3c"
 
-	"github.com/polygonid/sh-id-platform/internal/config"
-	"github.com/polygonid/sh-id-platform/internal/kms"
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/pkg/blockchain/eth"
+	"github.com/rarimo/issuer-node/internal/config"
+	"github.com/rarimo/issuer-node/internal/kms"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/pkg/blockchain/eth"
 )
 
 // AccountService is a service for account operations

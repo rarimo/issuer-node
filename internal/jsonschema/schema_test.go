@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/polygonid/sh-id-platform/internal/loader"
+	"github.com/rarimo/issuer-node/internal/loader"
 )
 
 func TestValidateCredentialSubject(t *testing.T) {

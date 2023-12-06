@@ -1,7 +1,7 @@
 # Polygon ID Issuer Node
 
-[![Checks](https://github.com/0xPolygonID/sh-id-platform/actions/workflows/checks.yml/badge.svg)](https://github.com/0xPolygonID/sh-id-platform/actions/workflows/checks.yml)
-[![golangci-lint](https://github.com/0xPolygonID/sh-id-platform/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/0xPolygonID/sh-id-platform/actions/workflows/golangci-lint.yml)
+[![Checks](https://github.com/0xrarimo/issuer-node/actions/workflows/checks.yml/badge.svg)](https://github.com/0xrarimo/issuer-node/actions/workflows/checks.yml)
+[![golangci-lint](https://github.com/0xrarimo/issuer-node/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/0xrarimo/issuer-node/actions/workflows/golangci-lint.yml)
 
 This is a set of tools and APIs for issuers of zk-proof credentials, designed to be extensible. It allows an authenticated user to create schemas for issuing and managing credentials of identities. It also provides a [user interface](ui/README.md) to manage issuer schemas, credentials, issuer state and connections.
 

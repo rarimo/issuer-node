@@ -325,7 +325,7 @@ func (s *Server) GetClaimMTP(ctx context.Context, request GetClaimMTPRequestObje
 
 	state := new(domain.IdentityState)
 	if request.Params.StateHash == nil {
-		issuerDID, err := core.ParseDID(claim.Issuer)
+		issuerDID, err := w3c.ParseDID(claim.Issuer)
 		if err != nil {
 			log.Error(ctx, "failed to parse DID", err)
 			return GetClaimMTP500JSONResponse{N500JSONResponse{}}, nil

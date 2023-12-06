@@ -161,7 +161,7 @@ func newCredentialsService(ctx context.Context, cfg *config.Configuration, stora
 	qrService := services.NewQrStoreService(cachex)
 
 	identityService := services.NewIdentity(keyStore, identityRepository, mtRepository, identityStateRepository, mtService, qrService, claimsRepository, revocationRepository, nil, storage, nil, nil, ps, cfg.CredentialStatus, rhsFactory, revocationStatusResolver)
-	claimsService := services.NewClaim(claimsRepository, identityService, qrService, mtService, identityStateRepository, schemaLoader, storage, cfg.APIUI.ServerURL, ps, cfg.IPFS.GatewayURL, revocationStatusResolver)
+	claimsService := services.NewClaim(claimsRepository, identityService, qrService, mtService, identityStateRepository, schemaLoader, storage, cfg.ServerUrl, cfg.APIUI.ServerURL, cfg.SingleIssuer, ps, cfg.IPFS.GatewayURL, revocationStatusResolver)
 
 	return claimsService, nil
 }

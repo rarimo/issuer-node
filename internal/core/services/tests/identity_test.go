@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/polygonid/sh-id-platform/internal/common"
-	"github.com/polygonid/sh-id-platform/internal/core/domain"
-	"github.com/polygonid/sh-id-platform/internal/core/ports"
-	"github.com/polygonid/sh-id-platform/internal/core/services"
-	"github.com/polygonid/sh-id-platform/internal/repositories"
-	"github.com/polygonid/sh-id-platform/pkg/credentials/revocation_status"
-	"github.com/polygonid/sh-id-platform/pkg/pubsub"
-	"github.com/polygonid/sh-id-platform/pkg/reverse_hash"
+	"github.com/rarimo/issuer-node/internal/common"
+	"github.com/rarimo/issuer-node/internal/core/domain"
+	"github.com/rarimo/issuer-node/internal/core/ports"
+	"github.com/rarimo/issuer-node/internal/core/services"
+	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/credentials/revocation_status"
+	"github.com/rarimo/issuer-node/pkg/pubsub"
+	"github.com/rarimo/issuer-node/pkg/reverse_hash"
 )
 
 const (

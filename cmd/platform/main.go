@@ -134,30 +134,12 @@ func main() {
 
 	// services initialization
 	mtService := services.NewIdentityMerkleTrees(mtRepository, merkleTreeRootsRepository)
-	identityService := services.NewIdentity(keyStore, identityRepository, mtRepository, identityStateRepository, mtService, claimsRepository, revocationRepository, nil, storage, rhsp, nil, nil, ps)
-	claimsService := services.NewClaim(
-		claimsRepository,
-		identityService,
-		mtService,
-		identityStateRepository,
-		schemaLoader,
-		storage,
-		services.ClaimCfg{
-			RHSEnabled: cfg.ReverseHashService.Enabled,
-			RHSUrl:     cfg.ReverseHashService.URL,
-			Host:       cfg.ServerUrl,
-			UIHost:     cfg.APIUI.ServerURL,
-		},
-		ps,
-		cfg.IFPS.GatewayURL,
-	)
-	mtService := services.NewIdentityMerkleTrees(mtRepository)
 	qrService := services.NewQrStoreService(cachex)
 
 	cfg.CredentialStatus.SingleIssuer = false
 	revocationStatusResolver := revocation_status.NewRevocationStatusResolver(cfg.CredentialStatus)
 	identityService := services.NewIdentity(keyStore, identityRepository, mtRepository, identityStateRepository, mtService, qrService, claimsRepository, revocationRepository, nil, storage, nil, nil, ps, cfg.CredentialStatus, rhsFactory, revocationStatusResolver)
-	claimsService := services.NewClaim(claimsRepository, identityService, qrService, mtService, identityStateRepository, schemaLoader, storage, cfg.ServerUrl, ps, cfg.IPFS.GatewayURL, revocationStatusResolver)
+	claimsService := services.NewClaim(claimsRepository, identityService, qrService, mtService, identityStateRepository, schemaLoader, storage, cfg.ServerUrl, cfg.APIUI.ServerURL, cfg.SingleIssuer, ps, cfg.IPFS.GatewayURL, revocationStatusResolver)
 	proofService := gateways.NewProver(ctx, cfg, circuitsLoaderService)
 
 	stateService, err := eth.NewStateService(eth.StateServiceConfig{

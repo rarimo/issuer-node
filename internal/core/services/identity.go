@@ -761,18 +761,6 @@ func (i *identity) createEthIdentityFromKeyID(ctx context.Context, mts *domain.I
 		return nil, nil, fmt.Errorf("can't create authClaimModel: %w", err)
 	}
 
-	authClaimModel.ID = claimID
-
-	mtpProof, err := i.getAuthClaimMtpProof(ctx, claimsTree, currentState, authClaim, did, hostURL, claimID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("can't add get current state from merkle tree: %w", err)
-	}
-
-	err = authClaimModel.Data.Set(marshaledCredential)
-	if err != nil {
-		return nil, nil, fmt.Errorf("can't set data to auth claim: %w", err)
-	}
-
 	did, err := core.NewDID(didType, currentState)
 	if err != nil {
 		return nil, nil, err
@@ -805,7 +793,7 @@ func (i *identity) createEthIdentityFromKeyID(ctx context.Context, mts *domain.I
 	return identity, did, nil
 }
 
-func (i *identity) getAuthClaimMtpProof(ctx context.Context, claimsTree *merkletree.MerkleTree, currentState *merkletree.Hash, authClaim *core.Claim, did *w3c.DID, hostURL string, claimID uuid.UUID) (verifiable.Iden3SparseMerkleTreeProof, error) {
+func (i *identity) getAuthClaimMtpProof(ctx context.Context, claimsTree *merkletree.MerkleTree, currentState *merkletree.Hash, authClaim *core.Claim, did *w3c.DID, hostURL string, claimID uuid.UUID) (common.Iden3SparseMerkleTreeProof, error) {
 	index, err := authClaim.HIndex()
 	if err != nil {
 		return common.Iden3SparseMerkleTreeProof{}, err
@@ -1068,7 +1056,7 @@ func (i *identity) authClaimToModel(ctx context.Context, did *w3c.DID, identity 
 	}
 
 	if isAuthInGenesis {
-		authMtpProof, err := i.getAuthClaimMtpProof(ctx, claimsTree, identity.State.TreeState().State, authClaim, did)
+		authMtpProof, err := i.getAuthClaimMtpProof(ctx, claimsTree, identity.State.TreeState().State, authClaim, did, hostURL, authClaimID)
 		if err != nil {
 			return nil, err
 		}

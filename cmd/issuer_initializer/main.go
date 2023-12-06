@@ -108,8 +108,6 @@ func main() {
 
 	// services initialization
 	mtService := services.NewIdentityMerkleTrees(mtRepository, merkleTreeRootsRepository)
-	identityService := services.NewIdentity(keyStore, identityRepository, mtRepository, identityStateRepository, mtService, claimsRepository, nil, nil, storage, nil, nil, nil, pubsub.NewMock())
-	mtService := services.NewIdentityMerkleTrees(mtRepository)
 
 	commonClient, err := ethclient.Dial(cfg.Ethereum.URL)
 	if err != nil {

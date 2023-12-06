@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	sql "github.com/iden3/go-merkletree-sql/db/pgx/v2"
 	"math/big"
 	"net/url"
 	"strings"
@@ -66,7 +67,7 @@ type claim struct {
 }
 
 // NewClaim creates a new claim service
-func NewClaim(repo ports.ClaimsRepository, idenSrv ports.IdentityService, qrService ports.QrStoreService, mtService ports.MtService, identityStateRepository ports.IdentityStateRepository, ld loader.DocumentLoader, storage *db.Storage, host string, ps pubsub.Publisher, ipfsGatewayURL string, revocationStatusResolver *revocation_status.RevocationStatusResolver) ports.ClaimsService {
+func NewClaim(repo ports.ClaimsRepository, idenSrv ports.IdentityService, qrService ports.QrStoreService, mtService ports.MtService, identityStateRepository ports.IdentityStateRepository, ld loader.DocumentLoader, storage *db.Storage, host, uiHost string, singleIssuer bool, ps pubsub.Publisher, ipfsGatewayURL string, revocationStatusResolver *revocation_status.RevocationStatusResolver) ports.ClaimsService {
 	s := &claim{
 		host:                     host,
 		uiHost:                   uiHost,
@@ -651,7 +652,7 @@ func (c *claim) getAgentCredential(ctx context.Context, basicMessage *ports.Agen
 		return nil, err
 	}
 
-	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim, c.cfg.UIHost)
+	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim, c.uiHost)
 	if err != nil {
 		log.Error(ctx, "creating W3 credential", "err", err)
 		return nil, fmt.Errorf("failed to convert claim to  w3cCredential: %w", err)
@@ -729,25 +730,25 @@ func (c *claim) newVerifiableCredential(ctx context.Context, claimReq *ports.Cre
 }
 
 // TODO remove
-func (c *claim) getRevocationSource(issuerDID string, nonce uint64, singleIssuer bool) interface{} {
-	if c.cfg.RHSEnabled {
-		return &verifiable.RHSCredentialStatus{
-			ID:              fmt.Sprintf("%s/node", strings.TrimSuffix(c.cfg.RHSUrl, "/")),
-			Type:            verifiable.Iden3ReverseSparseMerkleTreeProof,
-			RevocationNonce: nonce,
-			StatusIssuer: &verifiable.CredentialStatus{
-				ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
-				Type:            verifiable.SparseMerkleTreeProof,
-				RevocationNonce: nonce,
-			},
-		}
-	}
-	return &verifiable.CredentialStatus{
-		ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
-		Type:            verifiable.SparseMerkleTreeProof,
-		RevocationNonce: nonce,
-	}
-}
+//func (c *claim) getRevocationSource(issuerDID string, nonce uint64, singleIssuer bool) interface{} {
+//	if c.cfg.RHSEnabled {
+//		return &verifiable.RHSCredentialStatus{
+//			ID:              fmt.Sprintf("%s/node", strings.TrimSuffix(c.cfg.RHSUrl, "/")),
+//			Type:            verifiable.Iden3ReverseSparseMerkleTreeProof,
+//			RevocationNonce: nonce,
+//			StatusIssuer: &verifiable.CredentialStatus{
+//				ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
+//				Type:            verifiable.SparseMerkleTreeProof,
+//				RevocationNonce: nonce,
+//			},
+//		}
+//	}
+//	return &verifiable.CredentialStatus{
+//		ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
+//		Type:            verifiable.SparseMerkleTreeProof,
+//		RevocationNonce: nonce,
+//	}
+//}
 
 func (c *claim) buildCredentialID(issuerDID w3c.DID, credID uuid.UUID, singleIssuer bool) string {
 	// TODO: review how to build the credential ID
@@ -758,20 +759,20 @@ func (c *claim) buildCredentialID(issuerDID w3c.DID, credID uuid.UUID, singleIss
 }
 
 // TODO remove
-func buildRevocationURL(cfg ClaimCfg, issuerDID string, nonce uint64, singleIssuer bool) string {
-	if singleIssuer {
-		return fmt.Sprintf("%s/v1/credentials/revocation/status/%d",
-			cfg.UIHost, nonce)
-	}
-
-	return fmt.Sprintf("%s/v1/%s/claims/revocation/status/%d",
-		cfg.Host, url.QueryEscape(issuerDID), nonce)
-}
+//func buildRevocationURL(cfg ClaimCfg, issuerDID string, nonce uint64, singleIssuer bool) string {
+//	if singleIssuer {
+//		return fmt.Sprintf("%s/v1/credentials/revocation/status/%d",
+//			cfg.UIHost, nonce)
+//	}
+//
+//	return fmt.Sprintf("%s/v1/%s/claims/revocation/status/%d",
+//		cfg.Host, url.QueryEscape(issuerDID), nonce)
+//}
 
 func (c *claim) buildMTProofURL(credID uuid.UUID) string {
-	if c.cfg.SingleIssuer {
-		return fmt.Sprintf("%s/v1/claims/%s/mtp", c.cfg.UIHost, credID.String())
+	if c.singleIssuer {
+		return fmt.Sprintf("%s/v1/claims/%s/mtp", c.uiHost, credID.String())
 	}
 
-	return fmt.Sprintf("%s/v1/claims/%s/mtp", c.cfg.Host, credID.String())
+	return fmt.Sprintf("%s/v1/claims/%s/mtp", c.host, credID.String())
 }
