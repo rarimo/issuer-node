@@ -10,8 +10,8 @@ import (
 
 	"github.com/hashicorp/vault/api"
 
-	"github.com/polygonid/sh-id-platform/internal/log"
-	"github.com/polygonid/sh-id-platform/internal/providers"
+	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/providers"
 )
 
 type vaultKey struct {
