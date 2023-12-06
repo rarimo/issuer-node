@@ -1,6 +1,10 @@
 package api_ui
 
 import (
+	"fmt"
+	"github.com/google/uuid"
+	"github.com/iden3/iden3comm/v2/packers"
+	"github.com/iden3/iden3comm/v2/protocol"
 	"net/http"
 	"strings"
 	"time"
@@ -309,4 +313,38 @@ func getRevocationStatusResponse(rs *verifiable.RevocationStatus) RevocationStat
 	response.Mtp.Siblings = &siblings
 
 	return response
+}
+
+func getClaimOfferResponse(credential *domain.Claim, hostURL string) AgentResponse {
+	id := uuid.NewString()
+	return AgentResponse{
+		Body: struct {
+			Credentials []struct {
+				Description string `json:"description"`
+				Id          string `json:"id"`
+			}
+			Url string `json:"url"`
+		}{
+			Credentials: []struct {
+				Description string `json:"description"`
+				Id          string `json:"id"`
+			}{
+				{
+					Description: shortType(credential.SchemaType),
+					Id:          credential.ID.String(),
+				},
+			},
+			Url: getAgentEndpoint(hostURL),
+		},
+		From:     credential.Issuer,
+		Id:       id,
+		ThreadID: id,
+		To:       credential.OtherIdentifier,
+		Typ:      string(packers.MediaTypePlainMessage),
+		Type:     string(protocol.CredentialOfferMessageType),
+	}
+}
+
+func getAgentEndpoint(hostURL string) string {
+	return fmt.Sprintf("%s/v1/agent", strings.TrimSuffix(hostURL, "/"))
 }

@@ -11,7 +11,6 @@ import (
 	"github.com/iden3/go-rapidsnark/witness/v2"
 	"github.com/iden3/go-rapidsnark/witness/wazero"
 
-	"github.com/rarimo/issuer-node/internal/core/domain"
 	"github.com/rarimo/issuer-node/internal/log"
 	"github.com/rarimo/issuer-node/pkg/loaders"
 )

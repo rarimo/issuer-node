@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/rarimo/issuer-node/internal/log"
+	"github.com/rarimo/issuer-node/internal/common"
 	"strings"
 
 	core "github.com/iden3/go-iden3-core/v2"

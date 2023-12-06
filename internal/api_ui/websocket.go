@@ -104,8 +104,8 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 		}
 
 		if state.Status == domain.StatusConfirmed || state.Status == domain.StatusFailed {
-			for range ticker.C { // FIXME
-				if err = c.WriteJSON(getCredentialQrCodeResponse(claim, wr.hostURL)); err != nil {
+			for range ticker.C {
+				if err = c.WriteJSON(getClaimOfferResponse(claim, wr.hostURL)); err != nil {
 					log.Error(wr.ctx, "failed to write ws message", "err", err)
 					break
 				}

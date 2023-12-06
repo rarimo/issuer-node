@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	core "github.com/iden3/go-iden3-core"
+	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/rarimo/issuer-node/internal/core/domain"
 	"github.com/rarimo/issuer-node/internal/core/ports"
 	"github.com/rarimo/issuer-node/internal/log"
@@ -38,7 +38,7 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 	}
 	defer c.Close()
 
-	issuerDID, err := core.ParseDID(wr.request.Identifier)
+	issuerDID, err := w3c.ParseDID(wr.request.Identifier)
 	if err != nil {
 		log.Error(wr.ctx, "failed to parse did", "err", err)
 		return err

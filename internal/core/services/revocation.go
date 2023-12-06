@@ -62,7 +62,7 @@ func NewRevocationService(contract ethCommon.Address, stateService ports.StateSe
 }
 
 // Status returns the current revocation status
-func (r *Revocation) Status(ctx context.Context, credStatus interface{}, issuerDID *w3c.DID, issuerData *verifiable.IssuerData) (*verifiable.RevocationStatus, error) {
+func (r *Revocation) Status(ctx context.Context, credStatus interface{}, issuerDID *w3c.DID, issuerData *common.IssuerData) (*verifiable.RevocationStatus, error) {
 	status, err := convertCredentialStatus(credStatus)
 	if err != nil {
 		log.Error(ctx, "failed convert credential status", "error", err)
@@ -166,7 +166,7 @@ func getNonRevocationProofFromRHS(ctx context.Context, rhsURL string, data, issu
 	}, nil
 }
 
-func (r *Revocation) getRevocationStatusFromRHS(ctx context.Context, issuerDID *w3c.DID, status verifiable.CredentialStatus, issuerData *verifiable.IssuerData) (*verifiable.RevocationStatus, error) {
+func (r *Revocation) getRevocationStatusFromRHS(ctx context.Context, issuerDID *w3c.DID, status verifiable.CredentialStatus, issuerData *common.IssuerData) (*verifiable.RevocationStatus, error) {
 	latestStateInfo, err := r.stateService.GetLatestStateByDID(ctx, issuerDID)
 	if err != nil && strings.Contains(err.Error(), ErrIdentityDoesNotExist.Error()) {
 
@@ -226,7 +226,7 @@ func extractState(id string) (string, error) {
 	return params.Get("state"), nil
 }
 
-func getRevocationStatusFromIssuerData(did *w3c.DID, issuerData *verifiable.IssuerData) (*verifiable.RevocationStatus, error) {
+func getRevocationStatusFromIssuerData(did *w3c.DID, issuerData *common.IssuerData) (*verifiable.RevocationStatus, error) {
 	if issuerData == nil || issuerData.State.Value == nil {
 		return nil, errors.New("issuer data state is empty. is not possible verify revocation status")
 	}
