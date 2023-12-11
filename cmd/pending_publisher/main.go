@@ -241,7 +241,7 @@ func run(
 }
 
 func onChainPublisherRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher) {
-	ticker := time.NewTicker(cfg.OnChainCheckStatusFrequency)
+	ticker := time.NewTicker(cfg.StatesTransitionFrequency)
 	defer ticker.Stop()
 
 	for {
@@ -293,7 +293,7 @@ func onChainPublisherRunner(ctx context.Context, cfg *config.Configuration, publ
 }
 
 func statusCheckerRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher) {
-	ticker := time.NewTicker(cfg.StatesTransitionFrequency)
+	ticker := time.NewTicker(cfg.OnChainCheckStatusFrequency)
 	defer ticker.Stop()
 
 	for {

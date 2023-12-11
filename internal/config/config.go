@@ -394,8 +394,6 @@ func bindEnv() {
 	_ = viper.BindEnv("NativeProofGenerationEnabled", "ISSUER_NATIVE_PROOF_GENERATION_ENABLED")
 	_ = viper.BindEnv("PublishingKeyPath", "ISSUER_PUBLISH_KEY_PATH")
 	_ = viper.BindEnv("OnChainCheckStatusFrequency", "ISSUER_ONCHAIN_CHECK_STATUS_FREQUENCY")
-	_ = viper.BindEnv("StatesTransitionFrequency", "ISSUER_STATES_TRANSITION_FREQUENCY")
-	_ = viper.BindEnv("IsGasPriceZero", "ISSUER_IS_GAS_PRICE_ZERO")
 
 	_ = viper.BindEnv("Database.URL", "ISSUER_DATABASE_URL")
 
@@ -456,8 +454,12 @@ func bindEnv() {
 	_ = viper.BindEnv("APIUI.IdentityMethod", "ISSUER_API_IDENTITY_METHOD")
 	_ = viper.BindEnv("APIUI.IdentityBlockchain", "ISSUER_API_IDENTITY_BLOCKCHAIN")
 	_ = viper.BindEnv("APIUI.IdentityNetwork", "ISSUER_API_IDENTITY_NETWORK")
-	_ = viper.BindEnv("SingleIssuer", "ISSUER_SINGLE")
 	_ = viper.BindEnv("APIUI.KeyType", "ISSUER_API_UI_KEY_TYPE")
+
+	// Rarimo-specific
+	_ = viper.BindEnv("IsGasPriceZero", "ISSUER_IS_GAS_PRICE_ZERO")
+	_ = viper.BindEnv("StatesTransitionFrequency", "ISSUER_STATES_TRANSITION_FREQUENCY")
+	_ = viper.BindEnv("SingleIssuer", "ISSUER_SINGLE")
 
 	viper.AutomaticEnv()
 }
@@ -628,6 +630,7 @@ func checkEnvVars(ctx context.Context, cfg *Configuration) {
 
 	if cfg.APIUI.IdentityBlockchain == "" {
 		log.Info(ctx, "ISSUER_API_IDENTITY_BLOCKCHAIN value is missing")
+		cfg.APIUI.IdentityBlockchain = "readonly"
 	}
 
 	if cfg.APIUI.IdentityNetwork == "" {

@@ -82,7 +82,7 @@ run-ui: add-host-url-swagger
 run-ui-arm: add-host-url-swagger
 	@echo "WARN: Running ARM version is deprecated. 'make run-ui' will be executed instead."
 	@make run-ui
-	
+
 .PHONY: build
 build:
 	COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_FILE="Dockerfile" $(DOCKER_COMPOSE_CMD) build api pending_publisher initializer
@@ -250,4 +250,6 @@ run-all: clean-vault up sleep-10 clean-vault add-private-key add-vault-token gen
 
 # usage: make private_key=xxx run-all-arm
 .PHONY: run-all-arm
-run-all-arm: clean-vault up sleep-10 clean-vault add-private-key add-vault-token generate-issuer-did run-arm run-ui-arm
+run-all-arm:
+	@echo "WARN: Running ARM version is deprecated. 'make run-all' will be executed instead."
+	@make run-all
