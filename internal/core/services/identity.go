@@ -227,6 +227,20 @@ func (i *identity) getKeyIDFromAuthClaim(ctx context.Context, authClaim *domain.
 		return keyID, err
 	}
 
+	if len(keyIDs) == 0 {
+		legacyIdentityDID := identity.String()
+		legacyIdentityDID = strings.Replace(legacyIdentityDID, ":readonly", "", -1)
+		legacyIdentity, err := w3c.ParseDID(legacyIdentityDID)
+		if err != nil {
+			return keyID, err
+		}
+
+		keyIDs, err = i.kms.KeysByIdentity(ctx, *legacyIdentity)
+		if err != nil {
+			return keyID, err
+		}
+	}
+
 	for _, keyID = range keyIDs {
 		if keyID.Type != kms.KeyTypeBabyJubJub {
 			continue
@@ -300,6 +314,20 @@ func (i *identity) GetKeyIDFromAuthClaim(ctx context.Context, authClaim *domain.
 	keyIDs, err := i.kms.KeysByIdentity(ctx, *identity)
 	if err != nil {
 		return keyID, err
+	}
+
+	if len(keyIDs) == 0 {
+		legacyIdentityDID := identity.String()
+		legacyIdentityDID = strings.Replace(legacyIdentityDID, ":readonly", "", -1)
+		legacyIdentity, err := w3c.ParseDID(legacyIdentityDID)
+		if err != nil {
+			return keyID, err
+		}
+
+		keyIDs, err = i.kms.KeysByIdentity(ctx, *legacyIdentity)
+		if err != nil {
+			return keyID, err
+		}
 	}
 
 	for _, keyID = range keyIDs {
