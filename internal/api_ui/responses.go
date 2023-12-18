@@ -324,7 +324,7 @@ func getClaimOfferResponse(credential *domain.Claim, hostURL string) AgentRespon
 			Credentials []struct {
 				Description string `json:"description"`
 				Id          string `json:"id"`
-			}
+			} `json:"credentials"`
 			Url string `json:"url"`
 		}{
 			Credentials: []struct {

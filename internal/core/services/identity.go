@@ -1124,6 +1124,7 @@ func (i *identity) authClaimToModel(ctx context.Context, did *w3c.DID, identity 
 
 	authClaimModel.Identifier = &identity.Identifier
 	authClaimModel.MtProof = true
+	authClaimModel.ID = authClaimID
 	return authClaimModel, nil
 }
 
