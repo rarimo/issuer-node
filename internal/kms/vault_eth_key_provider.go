@@ -217,6 +217,14 @@ func decodeETHPrivateKey(key []byte) (*ecdsa.PrivateKey, error) {
 }
 
 func (v *vaultETHKeyProvider) PrivateKey(keyID KeyID) (string, error) {
-	// TODO
-	return "", nil
+	if keyID.Type != v.keyType {
+		return "", errors.New("incorrect key type")
+	}
+
+	privKeyBytes, err := v.privateKey(keyID)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+
+	return hex.EncodeToString(privKeyBytes), nil
 }

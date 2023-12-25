@@ -153,8 +153,12 @@ func (v *vaultBJJKeyProvider) PublicKey(keyID KeyID) ([]byte, error) {
 }
 
 func (v *vaultBJJKeyProvider) PrivateKey(keyID KeyID) (string, error) {
-	// TODO
-	return "", nil
+	privKeyBytes, err := v.privateKey(keyID)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(privKeyBytes), nil
 }
 
 func (v *vaultBJJKeyProvider) privateKey(keyID KeyID) ([]byte, error) {

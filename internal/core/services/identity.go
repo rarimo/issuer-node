@@ -156,8 +156,7 @@ func (i *identity) Import(ctx context.Context, hostURL, privKey string, didOptio
 
 			switch keyType {
 			case kms.KeyTypeEthereum:
-				// TODO import identity
-				return fmt.Errorf("unsupported key type: %s", keyType)
+				identifier, _, err = i.importEthIdentity(ctx, tx, hostURL, privKey, didOptions)
 			case kms.KeyTypeBabyJubJub:
 				identifier, _, err = i.importIdentity(ctx, tx, hostURL, privKey, didOptions)
 			default:
@@ -828,6 +827,75 @@ func (i *identity) createIdentity(ctx context.Context, tx db.Querier, hostURL st
 	if err != nil {
 		log.Error(ctx, "saving identity state", "err", err)
 		return nil, nil, fmt.Errorf("can't save identity state: %w", err)
+	}
+
+	return did, identity.State.TreeState().State.BigInt(), nil
+}
+
+func (i *identity) importEthIdentity(
+	ctx context.Context, tx db.Querier, hostURL, privKey string, didOptions *ports.DIDCreationOptions,
+) (*w3c.DID, *big.Int, error) {
+	mts, err := i.mtService.CreateIdentityMerkleTrees(ctx, tx)
+	if err != nil {
+		log.Error(ctx, "creating identity markle tree", "err", err)
+		return nil, nil, err
+	}
+
+	var key kms.KeyID
+	key, err = i.kms.ImportKey(kms.KeyTypeEthereum, privKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	identity, did, err := i.createEthIdentityFromKeyID(ctx, mts, &key, didOptions, tx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err = i.identityRepository.Save(ctx, tx, identity); err != nil {
+		log.Error(ctx, "saving identity", "err", err)
+		return nil, nil, errors.Join(err, errors.New("can't save identity"))
+	}
+
+	identity.State.Status = domain.StatusConfirmed
+	err = i.identityStateRepository.Save(ctx, tx, identity.State)
+	if err != nil {
+		log.Error(ctx, "saving identity state", "err", err)
+		return nil, nil, errors.Join(err, errors.New("can't save identity state"))
+	}
+
+	// add auth claim
+	bjjKey, err := i.kms.CreateKey(kms.KeyTypeBabyJubJub, did)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	bjjPubKey, err := bjjPubKey(i.kms, bjjKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	authClaim, err := newAuthClaim(bjjPubKey)
+	if err != nil {
+		return nil, nil, errors.Join(err, errors.New("can't create auth claim"))
+	}
+	var revNonce uint64 = 0
+	authClaim.SetRevocationNonce(revNonce)
+
+	claimsTree, err := mts.ClaimsTree()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	authClaimModel, err := i.authClaimToModel(ctx, did, identity, authClaim, claimsTree, bjjPubKey, hostURL, didOptions.AuthBJJCredentialStatus, false)
+	if err != nil {
+		log.Error(ctx, "auth claim to model", "err", err)
+		return nil, nil, err
+	}
+
+	_, err = i.claimsRepository.Save(ctx, tx, authClaimModel)
+	if err != nil {
+		return nil, nil, errors.Join(err, errors.New("can't save auth claim"))
 	}
 
 	return did, identity.State.TreeState().State.BigInt(), nil
