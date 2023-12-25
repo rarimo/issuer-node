@@ -142,6 +142,62 @@ func (i *identity) Create(ctx context.Context, hostURL string, didOptions *ports
 	return identityDB, nil
 }
 
+func (i *identity) Import(ctx context.Context, hostURL, privKey string, didOptions *ports.DIDCreationOptions) (*domain.Identity, error) {
+	var identifier *w3c.DID
+	var err error
+	err = i.storage.Pgx.BeginFunc(ctx,
+		func(tx pgx.Tx) error {
+			var keyType kms.KeyType
+			if didOptions == nil || didOptions.KeyType == "" {
+				keyType = kms.KeyTypeBabyJubJub
+			} else {
+				keyType = didOptions.KeyType
+			}
+
+			switch keyType {
+			case kms.KeyTypeEthereum:
+				// TODO import identity
+				return fmt.Errorf("unsupported key type: %s", keyType)
+			case kms.KeyTypeBabyJubJub:
+				identifier, _, err = i.importIdentity(ctx, tx, hostURL, privKey, didOptions)
+			default:
+				return fmt.Errorf("unsupported key type: %s", keyType)
+			}
+			return err
+		})
+
+	if err != nil {
+		log.Error(ctx, "creating identity", "err", err, "id", identifier)
+		return nil, fmt.Errorf("cannot create identity: %w", err)
+	}
+
+	identityDB, err := i.identityRepository.GetByID(ctx, i.storage.Pgx, *identifier)
+	if err != nil {
+		log.Error(ctx, "loading identity", "err", err, "id", identifier)
+		return nil, fmt.Errorf("can't get identity: %w", err)
+	}
+	return identityDB, nil
+}
+
+func (i *identity) GetPrivateKey(ctx context.Context, identity w3c.DID) (string, error) {
+	keys, err := i.kms.KeysByIdentity(ctx, identity)
+	if err != nil {
+		return "", fmt.Errorf("can't get identity keys: %w", err)
+	}
+
+	for _, key := range keys {
+		if key.Type == kms.KeyTypeBabyJubJub {
+			privKey, err := i.kms.PrivateKey(key)
+			if err != nil {
+				return "", fmt.Errorf("can't get identity keys: %w", err)
+			}
+			return privKey, nil
+		}
+	}
+
+	return "", errors.New("key not found")
+}
+
 func (i *identity) SignClaimEntry(ctx context.Context, authClaim *domain.Claim, claimEntry *core.Claim) (*common.BJJSignatureProof2021, error) {
 	keyID, err := i.getKeyIDFromAuthClaim(ctx, authClaim)
 	if err != nil {
@@ -696,6 +752,107 @@ func (i *identity) createIdentity(ctx context.Context, tx db.Querier, hostURL st
 	}
 
 	key, err := i.kms.CreateKey(kms.KeyTypeBabyJubJub, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't create babyJubJub key: %w", err)
+	}
+
+	pubKey, err := bjjPubKey(i.kms, key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't get babyJubJub public key: %w", err)
+	}
+
+	authClaim, err := newAuthClaim(pubKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't create auth claim: %w", err)
+	}
+
+	var revNonce uint64 = 0
+	authClaim.SetRevocationNonce(revNonce)
+
+	identity, did, err := i.addGenesisClaimsToTree(ctx, mts, &key, authClaim, didOptions, tx)
+	if err != nil {
+		log.Error(ctx, "adding genesis claims to tree", "err", err)
+		return nil, nil, fmt.Errorf("can't add genesis claims to tree: %w", err)
+	}
+
+	claimsTree, err := mts.ClaimsTree()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	authClaimModel, err := i.authClaimToModel(ctx, did, identity, authClaim, claimsTree, pubKey, hostURL, didOptions.AuthBJJCredentialStatus, true)
+	if err != nil {
+		log.Error(ctx, "auth claim to model", "err", err)
+		return nil, nil, err
+	}
+
+	_, err = i.claimsRepository.Save(ctx, tx, authClaimModel)
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't save auth claim: %w", err)
+	}
+
+	if err = i.identityRepository.Save(ctx, tx, identity); err != nil {
+		return nil, nil, fmt.Errorf("can't save identity: %w", err)
+	}
+
+	rhsPublishers, err := i.rhsFactory.BuildPublishers(ctx, reverse_hash.RHSMode(i.credentialStatusSettings.RHSMode), &kms.KeyID{
+		Type: kms.KeyTypeEthereum,
+		ID:   i.credentialStatusSettings.OnchainTreeStore.PublishingKeyPath,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't create RHS publisher: %w", err)
+	}
+
+	if len(rhsPublishers) > 0 {
+		log.Info(ctx, "publishing state to RHS", "publishers", len(rhsPublishers))
+		for _, rhsPublisher := range rhsPublishers {
+			err := rhsPublisher.PublishNodesToRHS(ctx, []mtproof.Node{
+				{
+					Hash: identity.State.TreeState().State,
+					Children: []*merkletree.Hash{
+						claimsTree.Root(),
+						&merkletree.HashZero,
+						&merkletree.HashZero,
+					},
+				},
+			})
+			if err != nil {
+				log.Error(ctx, "publishing state to RHS", "err", err)
+				return nil, nil, err
+			}
+		}
+	}
+
+	identity.State.Status = domain.StatusConfirmed
+	err = i.identityStateRepository.Save(ctx, tx, identity.State)
+	if err != nil {
+		log.Error(ctx, "saving identity state", "err", err)
+		return nil, nil, fmt.Errorf("can't save identity state: %w", err)
+	}
+
+	return did, identity.State.TreeState().State.BigInt(), nil
+}
+
+func (i *identity) importIdentity(
+	ctx context.Context, tx db.Querier, hostURL, privKey string, didOptions *ports.DIDCreationOptions,
+) (*w3c.DID, *big.Int, error) {
+	if didOptions == nil {
+		// nolint : it's a right assignment
+		didOptions = &ports.DIDCreationOptions{
+			Method:                  core.DIDMethodIden3,
+			Blockchain:              core.NoChain,
+			Network:                 core.NoNetwork,
+			KeyType:                 kms.KeyTypeBabyJubJub,
+			AuthBJJCredentialStatus: verifiable.SparseMerkleTreeProof,
+		}
+	}
+
+	mts, err := i.mtService.CreateIdentityMerkleTrees(ctx, tx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't create identity markle tree: %w", err)
+	}
+
+	key, err := i.kms.ImportKey(kms.KeyTypeBabyJubJub, privKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't create babyJubJub key: %w", err)
 	}

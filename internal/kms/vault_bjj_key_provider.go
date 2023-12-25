@@ -50,6 +50,19 @@ func (v *vaultBJJKeyProvider) New(identity *w3c.DID) (KeyID, error) {
 	return keyID, saveKeyMaterial(v.vaultCli, keyID.ID, keyMaterial)
 }
 
+func (v *vaultBJJKeyProvider) Import(privKeyStr string) (KeyID, error) {
+	bjjPrivKey := babyjub.PrivateKey([]byte(privKeyStr))
+	keyID := KeyID{
+		Type: v.keyType,
+		ID:   keyPath(nil, v.keyType, bjjPrivKey.Public().String()),
+	}
+	keyMaterial := map[string]string{
+		jsonKeyType: string(keyID.Type),
+		jsonKeyData: hex.EncodeToString(bjjPrivKey[:]),
+	}
+	return keyID, saveKeyMaterial(v.vaultCli, keyID.ID, keyMaterial)
+}
+
 func (v *vaultBJJKeyProvider) LinkToIdentity(_ context.Context, keyID KeyID, identity w3c.DID) (KeyID, error) {
 	if keyID.Type != v.keyType {
 		return keyID, ErrIncorrectKeyType
@@ -137,6 +150,11 @@ func (v *vaultBJJKeyProvider) PublicKey(keyID KeyID) ([]byte, error) {
 
 	val, err := hex.DecodeString(ss[1])
 	return val, err
+}
+
+func (v *vaultBJJKeyProvider) PrivateKey(keyID KeyID) (string, error) {
+	// TODO
+	return "", nil
 }
 
 func (v *vaultBJJKeyProvider) privateKey(keyID KeyID) ([]byte, error) {

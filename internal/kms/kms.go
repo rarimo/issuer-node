@@ -16,6 +16,8 @@ import (
 type KMSType interface {
 	RegisterKeyProvider(kt KeyType, kp KeyProvider) error
 	CreateKey(kt KeyType, identity *w3c.DID) (KeyID, error)
+	ImportKey(kt KeyType, privKey string) (KeyID, error)
+	PrivateKey(keyID KeyID) (string, error)
 	PublicKey(keyID KeyID) ([]byte, error)
 	Sign(ctx context.Context, keyID KeyID, data []byte) ([]byte, error)
 	KeysByIdentity(ctx context.Context, identity w3c.DID) ([]KeyID, error)
@@ -27,6 +29,10 @@ type KeyProvider interface {
 	// New generates random key.
 	// If identity is nil, create new key without binding to identity.
 	New(identity *w3c.DID) (KeyID, error)
+	// Import imports an identity using passed private key
+	Import(privKey string) (KeyID, error)
+	// PrivateKey returns byte representation of private key
+	PrivateKey(keyID KeyID) (string, error)
 	// PublicKey returns byte representation of public key
 	PublicKey(keyID KeyID) ([]byte, error)
 	// Sign the data and return signature.
@@ -96,6 +102,24 @@ func (k *KMS) CreateKey(kt KeyType, identity *w3c.DID) (KeyID, error) {
 		return id, errors.WithStack(ErrUnknownKeyType)
 	}
 	return kp.New(identity)
+}
+
+func (k *KMS) ImportKey(kt KeyType, privKey string) (KeyID, error) {
+	var id KeyID
+	kp, ok := k.registry[kt]
+	if !ok {
+		return id, errors.WithStack(ErrUnknownKeyType)
+	}
+	return kp.Import(privKey)
+}
+
+// PrivateKey returns bytes representation for private key for specified key ID
+func (k *KMS) PrivateKey(keyID KeyID) (string, error) {
+	kp, ok := k.registry[keyID.Type]
+	if !ok {
+		return "", errors.WithStack(ErrUnknownKeyType)
+	}
+	return kp.PrivateKey(keyID)
 }
 
 // PublicKey returns bytes representation for public key for specified key ID

@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	keyDest      = "dest"
-	keyData      = "data"
-	keySignature = "signature"
-	keyPublicKey = "public_key"
+	keyDest       = "dest"
+	keyData       = "data"
+	keySignature  = "signature"
+	keyPublicKey  = "public_key"
+	keyPrivateKey = "private_key"
 )
 
 type pluginIden3KeyTp string
@@ -161,6 +162,44 @@ func (v *vaultPluginIden3KeyProvider) New(identity *w3c.DID) (KeyID, error) {
 	return keyID, nil
 }
 
+func (v *vaultPluginIden3KeyProvider) Import(privKey string) (KeyID, error) {
+	randomKeyPath, err := v.importKeyPath()
+	if err != nil {
+		return KeyID{}, err
+	}
+	err = importKey(v.vaultCli, randomKeyPath, v.keyType, privKey)
+	if err != nil {
+		return KeyID{}, err
+	}
+
+	pubKeyStr, err := publicKey(v.vaultCli, randomKeyPath)
+	if err != nil {
+		return KeyID{}, err
+	}
+
+	keyPath := v.keyPathFromPublic(nil, pubKeyStr)
+	keyID := KeyID{Type: v.keyType, ID: keyPath.keyID}
+	err = moveKey(v.vaultCli, randomKeyPath, keyPath)
+	if err != nil {
+		return KeyID{}, err
+	}
+
+	return keyID, nil
+}
+
+func (v *vaultPluginIden3KeyProvider) PrivateKey(keyID KeyID) (string, error) {
+	if keyID.Type != v.keyType {
+		return "", errors.New("incorrect key type")
+	}
+
+	privKeyStr, err := privateKey(v.vaultCli, v.keyPathFromID(keyID))
+	if err != nil {
+		return "", err
+	}
+
+	return privKeyStr, nil
+}
+
 func (v *vaultPluginIden3KeyProvider) randomKeyPath() (keyPathT, error) {
 	var rnd [16]byte
 	_, err := rand.Read(rnd[:])
@@ -171,6 +210,20 @@ func (v *vaultPluginIden3KeyProvider) randomKeyPath() (keyPathT, error) {
 	keyName := v.keyFileName(hex.EncodeToString(rnd[:]))
 	return keyPathT{
 		keyID:     path.Join(v.keysPathPrefix, "random", keyName),
+		mountPath: v.keysMountPath,
+	}, nil
+}
+
+func (v *vaultPluginIden3KeyProvider) importKeyPath() (keyPathT, error) {
+	var rnd [16]byte
+	_, err := rand.Read(rnd[:])
+	if err != nil {
+		return keyPathT{}, err
+	}
+
+	keyName := v.keyFileName(hex.EncodeToString(rnd[:]))
+	return keyPathT{
+		keyID:     path.Join(v.keysPathPrefix, keyName),
 		mountPath: v.keysMountPath,
 	}, nil
 }
@@ -246,11 +299,42 @@ func newRandomKey(vaultCli *api.Client, keyPath keyPathT, keyType KeyType) error
 	return err
 }
 
+// import key into vault
+func importKey(vaultCli *api.Client, keyPath keyPathT, keyType KeyType, privKey string) error {
+	pluginKeyType, err := toPluginKeyType(keyType)
+	if err != nil {
+		return err
+	}
+
+	_, err = vaultCli.Logical().Write(keyPath.importKey(),
+		map[string]interface{}{jsonKeyType: pluginKeyType, jsonPrivKey: privKey})
+	return err
+}
+
 // move the key under new path
 func moveKey(vaultCli *api.Client, oldPath, newPath keyPathT) error {
 	data := map[string]interface{}{keyDest: newPath.keys()}
 	_, err := vaultCli.Logical().Write(oldPath.move(), data)
 	return err
+}
+
+func privateKey(vaultCli *api.Client, keyPath keyPathT) (string, error) {
+	secret, err := vaultCli.Logical().Read(keyPath.private())
+	if err != nil {
+		return "", err
+	}
+
+	data, err := getSecretData(secret)
+	if err != nil {
+		return "", err
+	}
+
+	privKeyStr, ok := data[keyPrivateKey].(string)
+	if !ok {
+		return "", errors.New("unable to get public key from secret")
+	}
+
+	return privKeyStr, nil
 }
 
 // get string representation of public key
@@ -346,6 +430,10 @@ func (p keyPathT) keys() string {
 	return p.join("keys")
 }
 
+func (p keyPathT) private() string {
+	return p.join("private")
+}
+
 func (p keyPathT) move() string {
 	return p.join("move")
 }
@@ -356,6 +444,10 @@ func (p keyPathT) sign() string {
 
 func (p keyPathT) new() string {
 	return p.join("new")
+}
+
+func (p keyPathT) importKey() string {
+	return p.join("import")
 }
 
 func toPluginKeyType(keyType KeyType) (pluginIden3KeyTp, error) {

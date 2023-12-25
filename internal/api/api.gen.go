@@ -23,8 +23,14 @@ const (
 
 // Defines values for CreateIdentityRequestDidMetadataType.
 const (
-	BJJ CreateIdentityRequestDidMetadataType = "BJJ"
-	ETH CreateIdentityRequestDidMetadataType = "ETH"
+	CreateIdentityRequestDidMetadataTypeBJJ CreateIdentityRequestDidMetadataType = "BJJ"
+	CreateIdentityRequestDidMetadataTypeETH CreateIdentityRequestDidMetadataType = "ETH"
+)
+
+// Defines values for ImportIdentityRequestDidMetadataType.
+const (
+	ImportIdentityRequestDidMetadataTypeBJJ ImportIdentityRequestDidMetadataType = "BJJ"
+	ImportIdentityRequestDidMetadataTypeETH ImportIdentityRequestDidMetadataType = "ETH"
 )
 
 // AgentResponse defines model for AgentResponse.
@@ -149,6 +155,12 @@ type GetIdentityDetailsResponse struct {
 	State      *IdentityState `json:"state,omitempty"`
 }
 
+// GetIdentityPrivateKeyResponse defines model for GetIdentityPrivateKeyResponse.
+type GetIdentityPrivateKeyResponse struct {
+	Identifier string `json:"identifier"`
+	PrivateKey string `json:"private_key"`
+}
+
 // Health defines model for Health.
 type Health map[string]bool
 
@@ -168,6 +180,20 @@ type IdentityState struct {
 	Status             string  `json:"status"`
 	TxID               *string `json:"txID,omitempty"`
 }
+
+// ImportIdentityRequest defines model for ImportIdentityRequest.
+type ImportIdentityRequest struct {
+	DidMetadata struct {
+		Blockchain string                               `json:"blockchain"`
+		Method     string                               `json:"method"`
+		Network    string                               `json:"network"`
+		Type       ImportIdentityRequestDidMetadataType `json:"type"`
+	} `json:"didMetadata"`
+	PrivateKey string `json:"privateKey"`
+}
+
+// ImportIdentityRequestDidMetadataType defines model for ImportIdentityRequest.DidMetadata.Type.
+type ImportIdentityRequestDidMetadataType string
 
 // KeyValue defines model for KeyValue.
 type KeyValue struct {
@@ -294,6 +320,9 @@ type AgentTextRequestBody = AgentTextBody
 // CreateIdentityJSONRequestBody defines body for CreateIdentity for application/json ContentType.
 type CreateIdentityJSONRequestBody = CreateIdentityRequest
 
+// ImportIdentityJSONRequestBody defines body for ImportIdentity for application/json ContentType.
+type ImportIdentityJSONRequestBody = ImportIdentityRequest
+
 // CreateClaimJSONRequestBody defines body for CreateClaim for application/json ContentType.
 type CreateClaimJSONRequestBody = CreateClaimRequest
 
@@ -326,9 +355,15 @@ type ServerInterface interface {
 	// Create Identity
 	// (POST /v1/identities)
 	CreateIdentity(w http.ResponseWriter, r *http.Request)
+	// Import Identity
+	// (POST /v1/identities/import)
+	ImportIdentity(w http.ResponseWriter, r *http.Request)
 	// Identity Detail
 	// (GET /v1/identities/{identifier}/details)
 	GetIdentityDetails(w http.ResponseWriter, r *http.Request, identifier PathIdentifier)
+	// Identity Private Key
+	// (GET /v1/identities/{identifier}/private-key)
+	GetIdentityPrivateKey(w http.ResponseWriter, r *http.Request, identifier PathIdentifier)
 	// QrCode body
 	// (GET /v1/qr-store)
 	GetQrFromStore(w http.ResponseWriter, r *http.Request, params GetQrFromStoreParams)
@@ -419,9 +454,21 @@ func (_ Unimplemented) CreateIdentity(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Import Identity
+// (POST /v1/identities/import)
+func (_ Unimplemented) ImportIdentity(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Identity Detail
 // (GET /v1/identities/{identifier}/details)
 func (_ Unimplemented) GetIdentityDetails(w http.ResponseWriter, r *http.Request, identifier PathIdentifier) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Identity Private Key
+// (GET /v1/identities/{identifier}/private-key)
+func (_ Unimplemented) GetIdentityPrivateKey(w http.ResponseWriter, r *http.Request, identifier PathIdentifier) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -657,6 +704,23 @@ func (siw *ServerInterfaceWrapper) CreateIdentity(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// ImportIdentity operation middleware
+func (siw *ServerInterfaceWrapper) ImportIdentity(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportIdentity(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // GetIdentityDetails operation middleware
 func (siw *ServerInterfaceWrapper) GetIdentityDetails(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -676,6 +740,34 @@ func (siw *ServerInterfaceWrapper) GetIdentityDetails(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetIdentityDetails(w, r, identifier)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetIdentityPrivateKey operation middleware
+func (siw *ServerInterfaceWrapper) GetIdentityPrivateKey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "identifier" -------------
+	var identifier PathIdentifier
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "identifier", runtime.ParamLocationPath, chi.URLParam(r, "identifier"), &identifier)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "identifier", Err: err})
+		return
+	}
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetIdentityPrivateKey(w, r, identifier)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1219,7 +1311,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/v1/identities", wrapper.CreateIdentity)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/v1/identities/import", wrapper.ImportIdentity)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/identities/{identifier}/details", wrapper.GetIdentityDetails)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/identities/{identifier}/private-key", wrapper.GetIdentityPrivateKey)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/qr-store", wrapper.GetQrFromStore)
@@ -1524,6 +1622,50 @@ func (response CreateIdentity500JSONResponse) VisitCreateIdentityResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ImportIdentityRequestObject struct {
+	Body *ImportIdentityJSONRequestBody
+}
+
+type ImportIdentityResponseObject interface {
+	VisitImportIdentityResponse(w http.ResponseWriter) error
+}
+
+type ImportIdentity201JSONResponse CreateIdentityResponse
+
+func (response ImportIdentity201JSONResponse) VisitImportIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ImportIdentity400JSONResponse struct{ N400JSONResponse }
+
+func (response ImportIdentity400JSONResponse) VisitImportIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ImportIdentity401JSONResponse struct{ N401JSONResponse }
+
+func (response ImportIdentity401JSONResponse) VisitImportIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ImportIdentity500JSONResponse struct{ N500CreateIdentityJSONResponse }
+
+func (response ImportIdentity500JSONResponse) VisitImportIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetIdentityDetailsRequestObject struct {
 	Identifier PathIdentifier `json:"identifier"`
 }
@@ -1562,6 +1704,59 @@ func (response GetIdentityDetails401JSONResponse) VisitGetIdentityDetailsRespons
 type GetIdentityDetails500JSONResponse struct{ N500JSONResponse }
 
 func (response GetIdentityDetails500JSONResponse) VisitGetIdentityDetailsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetIdentityPrivateKeyRequestObject struct {
+	Identifier PathIdentifier `json:"identifier"`
+}
+
+type GetIdentityPrivateKeyResponseObject interface {
+	VisitGetIdentityPrivateKeyResponse(w http.ResponseWriter) error
+}
+
+type GetIdentityPrivateKey200JSONResponse GetIdentityPrivateKeyResponse
+
+func (response GetIdentityPrivateKey200JSONResponse) VisitGetIdentityPrivateKeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetIdentityPrivateKey400JSONResponse struct{ N400JSONResponse }
+
+func (response GetIdentityPrivateKey400JSONResponse) VisitGetIdentityPrivateKeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetIdentityPrivateKey401JSONResponse struct{ N401JSONResponse }
+
+func (response GetIdentityPrivateKey401JSONResponse) VisitGetIdentityPrivateKeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetIdentityPrivateKey404JSONResponse struct{ N404JSONResponse }
+
+func (response GetIdentityPrivateKey404JSONResponse) VisitGetIdentityPrivateKeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetIdentityPrivateKey500JSONResponse struct{ N500JSONResponse }
+
+func (response GetIdentityPrivateKey500JSONResponse) VisitGetIdentityPrivateKeyResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -2044,9 +2239,15 @@ type StrictServerInterface interface {
 	// Create Identity
 	// (POST /v1/identities)
 	CreateIdentity(ctx context.Context, request CreateIdentityRequestObject) (CreateIdentityResponseObject, error)
+	// Import Identity
+	// (POST /v1/identities/import)
+	ImportIdentity(ctx context.Context, request ImportIdentityRequestObject) (ImportIdentityResponseObject, error)
 	// Identity Detail
 	// (GET /v1/identities/{identifier}/details)
 	GetIdentityDetails(ctx context.Context, request GetIdentityDetailsRequestObject) (GetIdentityDetailsResponseObject, error)
+	// Identity Private Key
+	// (GET /v1/identities/{identifier}/private-key)
+	GetIdentityPrivateKey(ctx context.Context, request GetIdentityPrivateKeyRequestObject) (GetIdentityPrivateKeyResponseObject, error)
 	// QrCode body
 	// (GET /v1/qr-store)
 	GetQrFromStore(ctx context.Context, request GetQrFromStoreRequestObject) (GetQrFromStoreResponseObject, error)
@@ -2342,6 +2543,37 @@ func (sh *strictHandler) CreateIdentity(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// ImportIdentity operation middleware
+func (sh *strictHandler) ImportIdentity(w http.ResponseWriter, r *http.Request) {
+	var request ImportIdentityRequestObject
+
+	var body ImportIdentityJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ImportIdentity(ctx, request.(ImportIdentityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ImportIdentity")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ImportIdentityResponseObject); ok {
+		if err := validResponse.VisitImportIdentityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetIdentityDetails operation middleware
 func (sh *strictHandler) GetIdentityDetails(w http.ResponseWriter, r *http.Request, identifier PathIdentifier) {
 	var request GetIdentityDetailsRequestObject
@@ -2361,6 +2593,32 @@ func (sh *strictHandler) GetIdentityDetails(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetIdentityDetailsResponseObject); ok {
 		if err := validResponse.VisitGetIdentityDetailsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetIdentityPrivateKey operation middleware
+func (sh *strictHandler) GetIdentityPrivateKey(w http.ResponseWriter, r *http.Request, identifier PathIdentifier) {
+	var request GetIdentityPrivateKeyRequestObject
+
+	request.Identifier = identifier
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetIdentityPrivateKey(ctx, request.(GetIdentityPrivateKeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetIdentityPrivateKey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetIdentityPrivateKeyResponseObject); ok {
+		if err := validResponse.VisitGetIdentityPrivateKeyResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
