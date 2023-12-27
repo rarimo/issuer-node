@@ -75,13 +75,13 @@ type AuthenticationConnection struct {
 
 // ClaimOfferResponse defines model for ClaimOfferResponse.
 type ClaimOfferResponse struct {
-	Body interface{} `json:"body"`
-	From string      `json:"from"`
-	Id   string      `json:"id"`
-	Thid string      `json:"thid"`
-	To   string      `json:"to"`
-	Typ  string      `json:"typ"`
-	Type string      `json:"type"`
+	Body     interface{} `json:"body"`
+	From     string      `json:"from"`
+	Id       string      `json:"id"`
+	ThreadID string      `json:"threadID"`
+	To       string      `json:"to"`
+	Typ      string      `json:"typ"`
+	Type     string      `json:"type"`
 }
 
 // Config defines model for Config.

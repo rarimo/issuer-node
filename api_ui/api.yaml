@@ -1725,7 +1725,7 @@ components:
         - id
         - typ
         - type
-        - thid
+        - threadID
         - from
         - to
       properties:
@@ -1735,7 +1735,7 @@ components:
           type: string
         type:
           type: string
-        thid:
+        threadID:
           type: string
         body:
           type: null

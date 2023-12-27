@@ -324,7 +324,7 @@ func getClaimOfferResponse(credential *domain.Claim, hostURL string) ClaimOfferR
 			Credentials []struct {
 				Description string `json:"description"`
 				Id          string `json:"id"`
-			} `json:"credentials"`
+			} `json:"Credentials"`
 			Url string `json:"url"`
 		}{
 			Credentials: []struct {
@@ -338,12 +338,12 @@ func getClaimOfferResponse(credential *domain.Claim, hostURL string) ClaimOfferR
 			},
 			Url: getAgentEndpoint(hostURL),
 		},
-		From: credential.Issuer,
-		Id:   id,
-		Thid: id,
-		To:   credential.OtherIdentifier,
-		Typ:  string(packers.MediaTypePlainMessage),
-		Type: string(protocol.CredentialOfferMessageType),
+		From:     credential.Issuer,
+		Id:       id,
+		ThreadID: id,
+		To:       credential.OtherIdentifier,
+		Typ:      string(packers.MediaTypePlainMessage),
+		Type:     string(protocol.CredentialOfferMessageType),
 	}
 }
 
