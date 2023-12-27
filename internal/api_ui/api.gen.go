@@ -73,6 +73,17 @@ type AuthenticationConnection struct {
 	UserID     UUIDString `json:"userID"`
 }
 
+// ClaimOfferResponse defines model for ClaimOfferResponse.
+type ClaimOfferResponse struct {
+	Body interface{} `json:"body"`
+	From string      `json:"from"`
+	Id   string      `json:"id"`
+	Thid string      `json:"thid"`
+	To   string      `json:"to"`
+	Typ  string      `json:"typ"`
+	Type string      `json:"type"`
+}
+
 // Config defines model for Config.
 type Config = []KeyValue
 
@@ -3267,7 +3278,7 @@ type ClaimOfferResponseObject interface {
 	VisitClaimOfferResponse(w http.ResponseWriter) error
 }
 
-type ClaimOffer200JSONResponse AgentResponse
+type ClaimOffer200JSONResponse ClaimOfferResponse
 
 func (response ClaimOffer200JSONResponse) VisitClaimOfferResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")

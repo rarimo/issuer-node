@@ -317,9 +317,9 @@ func getRevocationStatusResponse(rs *verifiable.RevocationStatus) RevocationStat
 	return response
 }
 
-func getClaimOfferResponse(credential *domain.Claim, hostURL string) AgentResponse {
+func getClaimOfferResponse(credential *domain.Claim, hostURL string) ClaimOfferResponse {
 	id := uuid.NewString()
-	return AgentResponse{
+	return ClaimOfferResponse{
 		Body: struct {
 			Credentials []struct {
 				Description string `json:"description"`
@@ -338,12 +338,12 @@ func getClaimOfferResponse(credential *domain.Claim, hostURL string) AgentRespon
 			},
 			Url: getAgentEndpoint(hostURL),
 		},
-		From:     credential.Issuer,
-		Id:       id,
-		ThreadID: id,
-		To:       credential.OtherIdentifier,
-		Typ:      string(packers.MediaTypePlainMessage),
-		Type:     string(protocol.CredentialOfferMessageType),
+		From: credential.Issuer,
+		Id:   id,
+		Thid: id,
+		To:   credential.OtherIdentifier,
+		Typ:  string(packers.MediaTypePlainMessage),
+		Type: string(protocol.CredentialOfferMessageType),
 	}
 }
 

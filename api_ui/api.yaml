@@ -386,7 +386,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AgentResponse'
+                $ref: '#/components/schemas/ClaimOfferResponse'
         '400':
           $ref: '#/components/responses/400'
         '404':
@@ -1710,6 +1710,32 @@ components:
         type:
           type: string
         threadID:
+          type: string
+        body:
+          type: null
+        from:
+          type: string
+        to:
+          type: string
+
+    ClaimOfferResponse:
+      type: object
+      required:
+        - body
+        - id
+        - typ
+        - type
+        - thid
+        - from
+        - to
+      properties:
+        id:
+          type: string
+        typ:
+          type: string
+        type:
+          type: string
+        thid:
           type: string
         body:
           type: null
