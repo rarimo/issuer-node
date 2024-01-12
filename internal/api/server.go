@@ -430,6 +430,48 @@ func (s *Server) SubscribeToClaimWebsocket(ctx context.Context, request Subscrib
 	return resp, nil
 }
 
+func (s *Server) GetClaimStateStatus(ctx context.Context, request GetClaimStateStatusRequestObject) (GetClaimStateStatusResponseObject, error) {
+	issuerDID, err := w3c.ParseDID(request.Identifier)
+	if err != nil {
+		return GetClaimStateStatus400JSONResponse{N400JSONResponse{
+			Message: err.Error(),
+		}}, nil
+	}
+
+	claimUUID, err := uuid.Parse(request.Id)
+	if err != nil {
+		return GetClaimStateStatus400JSONResponse{N400JSONResponse{
+			Message: err.Error(),
+		}}, nil
+	}
+
+	claim, err := s.claimService.GetByID(context.Background(), issuerDID, claimUUID)
+	if err != nil {
+		log.Error(ctx, "failed to get claim", err)
+		return GetClaimStateStatus500JSONResponse{N500JSONResponse{}}, nil
+	}
+	if claim == nil || claim.IdentityState == nil {
+		return GetClaimStateStatus404JSONResponse{N404JSONResponse{
+			Message: "claim not found",
+		}}, nil
+	}
+
+	state, err := s.identityService.GetStateByHash(context.Background(), *claim.IdentityState)
+	if err != nil {
+		log.Error(ctx, "failed to get identity state", err)
+		return GetClaimStateStatus500JSONResponse{N500JSONResponse{}}, nil
+	}
+	if state == nil {
+		return GetClaimStateStatus404JSONResponse{N404JSONResponse{
+			Message: "state not found",
+		}}, nil
+	}
+
+	return GetClaimStateStatus200JSONResponse{
+		Status: string(state.Status),
+	}, nil
+}
+
 // GetIdentities is the controller to get identities
 func (s *Server) GetIdentities(ctx context.Context, request GetIdentitiesRequestObject) (GetIdentitiesResponseObject, error) {
 	var response GetIdentities200JSONResponse

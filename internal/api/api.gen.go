@@ -138,6 +138,11 @@ type GetClaimResponse struct {
 	Type              []string               `json:"type"`
 }
 
+// GetClaimStateStatusResponse defines model for GetClaimStateStatusResponse.
+type GetClaimStateStatusResponse struct {
+	Status string `json:"status"`
+}
+
 // GetClaimsResponse defines model for GetClaimsResponse.
 type GetClaimsResponse = []GetClaimResponse
 
@@ -350,6 +355,9 @@ type ServerInterface interface {
 	// Get Claim QR code
 	// (GET /v1/{identifier}/claims/{id}/qrcode)
 	GetClaimQrCode(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, id PathClaim)
+	// Get Claim State Status
+	// (GET /v1/{identifier}/claims/{id}/status)
+	GetClaimStateStatus(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, id PathClaim)
 	// Websocket for getting claim status
 	// (GET /v1/{identifier}/claims/{id}/status/subscribe)
 	SubscribeToClaimWebsocket(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, id PathClaim)
@@ -464,6 +472,12 @@ func (_ Unimplemented) GetClaim(w http.ResponseWriter, r *http.Request, identifi
 // Get Claim QR code
 // (GET /v1/{identifier}/claims/{id}/qrcode)
 func (_ Unimplemented) GetClaimQrCode(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, id PathClaim) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get Claim State Status
+// (GET /v1/{identifier}/claims/{id}/status)
+func (_ Unimplemented) GetClaimStateStatus(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, id PathClaim) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -985,6 +999,43 @@ func (siw *ServerInterfaceWrapper) GetClaimQrCode(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// GetClaimStateStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetClaimStateStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "identifier" -------------
+	var identifier PathIdentifier
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "identifier", runtime.ParamLocationPath, chi.URLParam(r, "identifier"), &identifier)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "identifier", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "id" -------------
+	var id PathClaim
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "id", runtime.ParamLocationPath, chi.URLParam(r, "id"), &id)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetClaimStateStatus(w, r, identifier, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // SubscribeToClaimWebsocket operation middleware
 func (siw *ServerInterfaceWrapper) SubscribeToClaimWebsocket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1241,6 +1292,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/{identifier}/claims/{id}/qrcode", wrapper.GetClaimQrCode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/{identifier}/claims/{id}/status", wrapper.GetClaimStateStatus)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/{identifier}/claims/{id}/status/subscribe", wrapper.SubscribeToClaimWebsocket)
@@ -1901,6 +1955,51 @@ func (response GetClaimQrCode500JSONResponse) VisitGetClaimQrCodeResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetClaimStateStatusRequestObject struct {
+	Identifier PathIdentifier `json:"identifier"`
+	Id         PathClaim      `json:"id"`
+}
+
+type GetClaimStateStatusResponseObject interface {
+	VisitGetClaimStateStatusResponse(w http.ResponseWriter) error
+}
+
+type GetClaimStateStatus200JSONResponse GetClaimStateStatusResponse
+
+func (response GetClaimStateStatus200JSONResponse) VisitGetClaimStateStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetClaimStateStatus400JSONResponse struct{ N400JSONResponse }
+
+func (response GetClaimStateStatus400JSONResponse) VisitGetClaimStateStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetClaimStateStatus404JSONResponse struct{ N404JSONResponse }
+
+func (response GetClaimStateStatus404JSONResponse) VisitGetClaimStateStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetClaimStateStatus500JSONResponse struct{ N500JSONResponse }
+
+func (response GetClaimStateStatus500JSONResponse) VisitGetClaimStateStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type SubscribeToClaimWebsocketRequestObject struct {
 	Identifier PathIdentifier `json:"identifier"`
 	Id         PathClaim      `json:"id"`
@@ -2068,6 +2167,9 @@ type StrictServerInterface interface {
 	// Get Claim QR code
 	// (GET /v1/{identifier}/claims/{id}/qrcode)
 	GetClaimQrCode(ctx context.Context, request GetClaimQrCodeRequestObject) (GetClaimQrCodeResponseObject, error)
+	// Get Claim State Status
+	// (GET /v1/{identifier}/claims/{id}/status)
+	GetClaimStateStatus(ctx context.Context, request GetClaimStateStatusRequestObject) (GetClaimStateStatusResponseObject, error)
 	// Websocket for getting claim status
 	// (GET /v1/{identifier}/claims/{id}/status/subscribe)
 	SubscribeToClaimWebsocket(ctx context.Context, request SubscribeToClaimWebsocketRequestObject) (SubscribeToClaimWebsocketResponseObject, error)
@@ -2556,6 +2658,33 @@ func (sh *strictHandler) GetClaimQrCode(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetClaimQrCodeResponseObject); ok {
 		if err := validResponse.VisitGetClaimQrCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetClaimStateStatus operation middleware
+func (sh *strictHandler) GetClaimStateStatus(w http.ResponseWriter, r *http.Request, identifier PathIdentifier, id PathClaim) {
+	var request GetClaimStateStatusRequestObject
+
+	request.Identifier = identifier
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetClaimStateStatus(ctx, request.(GetClaimStateStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetClaimStateStatus")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetClaimStateStatusResponseObject); ok {
+		if err := validResponse.VisitGetClaimStateStatusResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

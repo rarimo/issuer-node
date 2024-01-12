@@ -422,7 +422,7 @@ paths:
           $ref: '#/components/responses/500'
   /v1/{identifier}/claims/{id}/status/subscribe:
     get:
-      summary: Websocket for getting claim status
+      summary: Subscribe To Claim State Status
       operationId: SubscribeToClaimWebsocket
       description: Subscribes to websocket for getting claim status
       tags:
@@ -435,6 +435,31 @@ paths:
       responses:
         '200':
           description: ok
+        '500':
+          $ref: '#/components/responses/500'
+  /v1/{identifier}/claims/{id}/status:
+    get:
+      summary: Get Claim State Status
+      operationId: GetClaimStateStatus
+      description: Returns claim's state status
+      tags:
+        - Claim
+      security:
+        - basicAuth: [ ]
+      parameters:
+        - $ref: '#/components/parameters/pathIdentifier'
+        - $ref: '#/components/parameters/pathClaim'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetClaimStateStatusResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '404':
+          $ref: '#/components/responses/404'
         '500':
           $ref: '#/components/responses/500'
 
@@ -852,6 +877,13 @@ components:
                 value:
                   type: string
 
+    GetClaimStateStatusResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
 
     CredentialSchema:
       type: object
