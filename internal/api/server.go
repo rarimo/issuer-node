@@ -177,6 +177,30 @@ func (s *Server) CreateClaim(ctx context.Context, request CreateClaimRequestObje
 	return CreateClaim201JSONResponse{Id: resp.ID.String()}, nil
 }
 
+func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject) (ClaimOfferResponseObject, error) {
+	issuerDID, err := w3c.ParseDID(request.Identifier)
+	if err != nil {
+		return ClaimOffer500JSONResponse{N500JSONResponse{err.Error()}}, nil
+	}
+
+	requestID, err := uuid.Parse(request.Id)
+	if err != nil {
+		return ClaimOffer500JSONResponse{N500JSONResponse{err.Error()}}, nil
+	}
+
+	claim, err := s.claimService.GetByID(ctx, issuerDID, requestID)
+	if err != nil {
+		return ClaimOffer500JSONResponse{N500JSONResponse{err.Error()}}, nil
+	}
+	if claim == nil {
+		return ClaimOffer404JSONResponse{N404JSONResponse{
+			Message: "the claim does not exist",
+		}}, nil
+	}
+
+	return ClaimOffer200JSONResponse(getClaimOfferResponse(claim, s.cfg.APIUI.ServerURL)), nil
+}
+
 // RevokeClaim is the revocation claim controller
 func (s *Server) RevokeClaim(ctx context.Context, request RevokeClaimRequestObject) (RevokeClaimResponseObject, error) {
 	did, err := w3c.ParseDID(request.Identifier)

@@ -73,7 +73,7 @@ paths:
                 $ref: '#/components/schemas/Config'
         '500':
           $ref: '#/components/responses/500'
-#identity:
+  #identity:
   /v1/identities:
     post:
       summary: Create Identity
@@ -456,6 +456,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetClaimStateStatusResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '404':
+          $ref: '#/components/responses/404'
+        '500':
+          $ref: '#/components/responses/500'
+  /v1/{identifier}/claims/{id}/offer:
+    get:
+      summary: Claim Offer
+      operationId: ClaimOffer
+      description: Endpoint to receive a credential by user ID and claim type.
+      tags:
+        - Claim
+      parameters:
+        - $ref: '#/components/parameters/pathIdentifier'
+        - $ref: '#/components/parameters/pathClaim'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimOfferResponse'
         '400':
           $ref: '#/components/responses/400'
         '404':
@@ -952,6 +975,32 @@ components:
 
     #Agent
     AgentResponse:
+      type: object
+      required:
+        - body
+        - id
+        - typ
+        - type
+        - threadID
+        - from
+        - to
+      properties:
+        id:
+          type: string
+        typ:
+          type: string
+        type:
+          type: string
+        threadID:
+          type: string
+        body:
+          type: null
+        from:
+          type: string
+        to:
+          type: string
+
+    ClaimOfferResponse:
       type: object
       required:
         - body
