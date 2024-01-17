@@ -198,7 +198,7 @@ func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject
 		}}, nil
 	}
 
-	return ClaimOffer200JSONResponse(getClaimOfferResponse(claim, s.cfg.APIUI.ServerURL)), nil
+	return ClaimOffer200JSONResponse(getClaimOfferResponse(claim, s.cfg.ServerUrl)), nil
 }
 
 // RevokeClaim is the revocation claim controller
