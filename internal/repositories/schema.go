@@ -8,15 +8,21 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	core "github.com/iden3/go-iden3-core"
+	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-iden3-core/v2/w3c"
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 
 	"github.com/rarimo/issuer-node/internal/core/domain"
 	"github.com/rarimo/issuer-node/internal/db"
 )
 
-// ErrSchemaDoesNotExist claim does not exist
-var ErrSchemaDoesNotExist = errors.New("schema does not exist")
+const duplicatedEntryPGCode = "23505"
+
+var (
+	ErrSchemaDoesNotExist = errors.New("schema does not exist")   // ErrSchemaDoesNotExist schema does not exist
+	ErrSchemaDuplicated   = errors.New("schema already imported") // ErrSchemaDuplicated schema duplicated
+)
 
 type dbSchema struct {
 	ID          uuid.UUID
@@ -60,7 +66,16 @@ func (r *schema) Save(ctx context.Context, s *domain.Schema) error {
 		s.Version,
 		s.Title,
 		s.Description)
-	return err
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == duplicatedEntryPGCode {
+			return ErrSchemaDuplicated
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 func (r *schema) toFullTextSearchDocument(sType string, attrs domain.SchemaWords) string {
@@ -72,7 +87,7 @@ func (r *schema) toFullTextSearchDocument(sType string, attrs domain.SchemaWords
 
 // GetAll returns all the schemas that match any of the words that are included in the query string.
 // For each word, it will search for attributes that start with it or include it following postgres full text search tokenization
-func (r *schema) GetAll(ctx context.Context, issuerDID core.DID, query *string) ([]domain.Schema, error) {
+func (r *schema) GetAll(ctx context.Context, issuerDID w3c.DID, query *string) ([]domain.Schema, error) {
 	var err error
 	var rows pgx.Rows
 	sqlArgs := make([]interface{}, 0)
@@ -110,7 +125,7 @@ func (r *schema) GetAll(ctx context.Context, issuerDID core.DID, query *string) 
 }
 
 // GetByID searches and returns an schema by id
-func (r *schema) GetByID(ctx context.Context, issuerDID core.DID, id uuid.UUID) (*domain.Schema, error) {
+func (r *schema) GetByID(ctx context.Context, issuerDID w3c.DID, id uuid.UUID) (*domain.Schema, error) {
 	const byID = `SELECT id, issuer_id, url, type, words, hash, created_at,version,title,description
 		FROM schemas 
 		WHERE issuer_id = $1 AND id=$2`
@@ -128,7 +143,7 @@ func (r *schema) GetByID(ctx context.Context, issuerDID core.DID, id uuid.UUID) 
 }
 
 func toSchemaDomain(s *dbSchema) (*domain.Schema, error) {
-	issuerDID, err := core.ParseDID(s.IssuerID)
+	issuerDID, err := w3c.ParseDID(s.IssuerID)
 	if err != nil {
 		return nil, fmt.Errorf("parsing issuer DID from schema: %w", err)
 	}

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/iden3/go-rapidsnark/types"
+
 	"github.com/rarimo/issuer-node/internal/config"
 	"github.com/rarimo/issuer-node/internal/core/domain"
 	"github.com/rarimo/issuer-node/internal/core/ports"
@@ -86,10 +88,8 @@ func (s *ProverService) Verify(ctx context.Context, zkp *domain.FullProof, circu
 }
 
 // Generate calls prover-server for proof generation
-func (s *ProverService) Generate(ctx context.Context, inputs json.RawMessage, circuitName string) (*domain.FullProof,
-	error,
-) {
-	var zkp domain.FullProof
+func (s *ProverService) Generate(ctx context.Context, inputs json.RawMessage, circuitName string) (*types.ZKProof, error) {
+	var zkp types.ZKProof
 
 	r := struct {
 		Inputs      json.RawMessage `json:"inputs"`

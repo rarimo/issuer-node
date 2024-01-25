@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/iden3/iden3comm/protocol"
+	"github.com/iden3/iden3comm/v2/protocol"
 
 	link_state "github.com/rarimo/issuer-node/pkg/link"
 )

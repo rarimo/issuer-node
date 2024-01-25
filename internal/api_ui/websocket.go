@@ -3,7 +3,7 @@ package api_ui
 import (
 	"context"
 	"github.com/gorilla/websocket"
-	core "github.com/iden3/go-iden3-core"
+	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/rarimo/issuer-node/internal/core/domain"
 	"github.com/rarimo/issuer-node/internal/core/ports"
 	"github.com/rarimo/issuer-node/internal/log"
@@ -16,7 +16,7 @@ var TickerDuration = 12 * time.Second
 type WebsocketResponse struct {
 	ctx             context.Context
 	request         SubscribeToClaimWebsocketRequestObject
-	issuerDID       core.DID
+	issuerDID       w3c.DID
 	claimService    ports.ClaimsService
 	identityService ports.IdentityService
 	hostURL         string
@@ -43,7 +43,7 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 	}
 	defer c.Close()
 
-	issuerDID, err := core.ParseDID(wr.issuerDID.String())
+	issuerDID, err := w3c.ParseDID(wr.issuerDID.String())
 	if err != nil {
 		log.Error(wr.ctx, "failed to parse did", "err", err)
 		return err
@@ -104,8 +104,8 @@ func (wr WebsocketResponse) VisitSubscribeToClaimWebsocketResponse(w http.Respon
 		}
 
 		if state.Status == domain.StatusConfirmed || state.Status == domain.StatusFailed {
-			for range ticker.C { // FIXME
-				if err = c.WriteJSON(getCredentialQrCodeResponse(claim, wr.hostURL)); err != nil {
+			for range ticker.C {
+				if err = c.WriteJSON(getClaimOfferResponse(claim, wr.hostURL)); err != nil {
 					log.Error(wr.ctx, "failed to write ws message", "err", err)
 					break
 				}

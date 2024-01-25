@@ -73,7 +73,7 @@ paths:
                 $ref: '#/components/schemas/Config'
         '500':
           $ref: '#/components/responses/500'
-#identity:
+  #identity:
   /v1/identities:
     post:
       summary: Create Identity
@@ -125,6 +125,30 @@ paths:
         '500':
           $ref: '#/components/responses/500'
 
+  /v1/identities/{identifier}/details:
+    get:
+      summary: Identity Detail
+      operationId: GetIdentityDetails
+      description: Endpoint to get an identity details
+      tags:
+        - Identity
+      security:
+        - basicAuth: [ ]
+      parameters:
+        - $ref: '#/components/parameters/pathIdentifier'
+      responses:
+        '200':
+          description: Identity top up successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetIdentityDetailsResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '500':
+          $ref: '#/components/responses/500'
 
   /v1/{identifier}/state/retry:
     post:
@@ -398,7 +422,7 @@ paths:
           $ref: '#/components/responses/500'
   /v1/{identifier}/claims/{id}/status/subscribe:
     get:
-      summary: Websocket for getting claim status
+      summary: Subscribe To Claim State Status
       operationId: SubscribeToClaimWebsocket
       description: Subscribes to websocket for getting claim status
       tags:
@@ -411,6 +435,54 @@ paths:
       responses:
         '200':
           description: ok
+        '500':
+          $ref: '#/components/responses/500'
+  /v1/{identifier}/claims/{id}/status:
+    get:
+      summary: Get Claim State Status
+      operationId: GetClaimStateStatus
+      description: Returns claim's state status
+      tags:
+        - Claim
+      security:
+        - basicAuth: [ ]
+      parameters:
+        - $ref: '#/components/parameters/pathIdentifier'
+        - $ref: '#/components/parameters/pathClaim'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetClaimStateStatusResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '404':
+          $ref: '#/components/responses/404'
+        '500':
+          $ref: '#/components/responses/500'
+  /v1/{identifier}/claims/{id}/offer:
+    get:
+      summary: Claim Offer
+      operationId: ClaimOffer
+      description: Endpoint to receive a credential by user ID and claim type.
+      tags:
+        - Claim
+      parameters:
+        - $ref: '#/components/parameters/pathIdentifier'
+        - $ref: '#/components/parameters/pathClaim'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimOfferResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '404':
+          $ref: '#/components/responses/404'
         '500':
           $ref: '#/components/responses/500'
 
@@ -441,29 +513,30 @@ paths:
         '500':
           $ref: '#/components/responses/500'
 
-#users
-  /v1/users:
-    post:
-      summary: Add user
-      operationId: AddUser
-      description: Adds login, password and did of a user to the database.
+  /v1/qr-store:
+    get:
+      summary: QrCode body
+      operationId: GetQrFromStore
+      description: Returns a previously generated QR code via url shortener method
       tags:
-        - User
-      security:
-        - basicAuth: [ ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AddUserRequest'
+        - Agent
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: string
+            x-go-type: uuid.UUID
+            x-go-type-import:
+              name: uuid
+              path: github.com/google/uuid
+            example: 8edd8112-c415-11ed-b036-debe37e1cbd6
       responses:
         '200':
-          description: ok
+          description: A json to generate a QR code
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetClaimQrCodeResponse'
+                type: object
         '400':
           $ref: '#/components/responses/400'
         '404':
@@ -521,6 +594,7 @@ components:
             - method
             - blockchain
             - network
+            - type
           properties:
             method:
               type: string
@@ -534,6 +608,11 @@ components:
               type: string
               x-omitempty: false
               example: "mumbai"
+            type:
+              type: string
+              x-omitempty: false
+              example: "BJJ"
+              enum: [BJJ, ETH]
 
     CreateIdentityResponse:
       type: object
@@ -545,6 +624,25 @@ components:
           type: string
         state:
           $ref: '#/components/schemas/IdentityState'
+        address:
+          type: string
+          x-omitempty: false
+
+    GetIdentityDetailsResponse:
+      type: object
+      required:
+        - identity
+        - status
+      properties:
+        identifier:
+          type: string
+        state:
+          $ref: '#/components/schemas/IdentityState'
+        address:
+          type: string
+        balance:
+          type: string
+
 
     IdentityState:
       type: object
@@ -581,11 +679,9 @@ components:
         status:
           type: string
         modifiedAt:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/TimeUTC'
         createdAt:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/TimeUTC'
 
     PublishIdentityStateResponse:
       type: object
@@ -702,11 +798,9 @@ components:
           items:
             type: string
         expiration:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/TimeUTC'
         issuanceDate:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/TimeUTC'
         credentialSubject:
           type: object
           x-omitempty: false
@@ -720,6 +814,10 @@ components:
           x-omitempty: false
         proof:
           type: null
+
+    QrCodeLinkShortResponse:
+      type: string
+      example: iden3comm://?request_uri=https%3A%2F%2Fissuer-demo.polygonid.me%2Fapi%2Fqr-store%3Fid%3Df780a169-8959-4380-9461-f7200e2ed3f4
 
     GetClaimQrCodeResponse:
       type: object
@@ -802,6 +900,13 @@ components:
                 value:
                   type: string
 
+    GetClaimStateStatusResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
 
     CredentialSchema:
       type: object
@@ -894,6 +999,41 @@ components:
           type: string
         to:
           type: string
+
+    ClaimOfferResponse:
+      type: object
+      required:
+        - body
+        - id
+        - typ
+        - type
+        - threadID
+        - from
+        - to
+      properties:
+        id:
+          type: string
+        typ:
+          type: string
+        type:
+          type: string
+        threadID:
+          type: string
+        body:
+          type: null
+        from:
+          type: string
+        to:
+          type: string
+
+    TimeUTC:
+      type: string
+      x-go-type: timeapi.Time
+      x-go-type-import:
+        name: timeapi
+        path: github.com/rarimo/issuer-node/internal/timeapi
+      example: '2023-10-26T10:59:08Z'
+      x-omitempty: false
 
   parameters:
     pathIdentifier:

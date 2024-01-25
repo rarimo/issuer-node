@@ -16,6 +16,7 @@ import (
 	"github.com/oapi-codegen/runtime"
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	timeapi "github.com/rarimo/issuer-node/internal/timeapi"
 )
 
 const (
@@ -63,18 +64,24 @@ type AgentResponse struct {
 	Type     string      `json:"type"`
 }
 
-// AuthenticationQrCodeResponse defines model for AuthenticationQrCodeResponse.
-type AuthenticationQrCodeResponse struct {
-	Body struct {
-		CallbackUrl string        `json:"callbackUrl"`
-		Reason      string        `json:"reason"`
-		Scope       []interface{} `json:"scope"`
-	} `json:"body"`
-	From string `json:"from"`
-	Id   string `json:"id"`
-	Thid string `json:"thid"`
-	Typ  string `json:"typ"`
-	Type string `json:"type"`
+// AuthenticationConnection defines model for AuthenticationConnection.
+type AuthenticationConnection struct {
+	CreatedAt  TimeUTC    `json:"createdAt"`
+	Id         UUIDString `json:"id"`
+	IssuerID   UUIDString `json:"issuerID"`
+	ModifiedAt TimeUTC    `json:"modifiedAt"`
+	UserID     UUIDString `json:"userID"`
+}
+
+// ClaimOfferResponse defines model for ClaimOfferResponse.
+type ClaimOfferResponse struct {
+	Body     interface{} `json:"body"`
+	From     string      `json:"from"`
+	Id       string      `json:"id"`
+	ThreadID string      `json:"threadID"`
+	To       string      `json:"to"`
+	Typ      string      `json:"typ"`
+	Type     string      `json:"type"`
 }
 
 // Config defines model for Config.
@@ -103,26 +110,27 @@ type CreateLinkRequest struct {
 
 // Credential defines model for Credential.
 type Credential struct {
-	CreatedAt         time.Time              `json:"createdAt"`
-	CredentialSubject map[string]interface{} `json:"credentialSubject"`
-	Expired           bool                   `json:"expired"`
-	ExpiresAt         *time.Time             `json:"expiresAt"`
-	Id                uuid.UUID              `json:"id"`
-	ProofTypes        []string               `json:"proofTypes"`
-	RevNonce          uint64                 `json:"revNonce"`
-	Revoked           bool                   `json:"revoked"`
-	SchemaHash        string                 `json:"schemaHash"`
-	SchemaType        string                 `json:"schemaType"`
-	SchemaUrl         string                 `json:"schemaUrl"`
-	UserID            string                 `json:"userID"`
+	CreatedAt             TimeUTC                `json:"createdAt"`
+	CredentialSubject     map[string]interface{} `json:"credentialSubject"`
+	Expired               bool                   `json:"expired"`
+	ExpiresAt             *TimeUTC               `json:"expiresAt"`
+	Id                    uuid.UUID              `json:"id"`
+	ProofTypes            []string               `json:"proofTypes"`
+	RevNonce              uint64                 `json:"revNonce"`
+	Revoked               bool                   `json:"revoked"`
+	SchemaHash            string                 `json:"schemaHash"`
+	SchemaType            string                 `json:"schemaType"`
+	SchemaTypeDescription *string                `json:"schemaTypeDescription,omitempty"`
+	SchemaUrl             string                 `json:"schemaUrl"`
+	UserID                string                 `json:"userID"`
 }
 
 // CredentialLinkQrCodeResponse defines model for CredentialLinkQrCodeResponse.
 type CredentialLinkQrCodeResponse struct {
-	Issuer     IssuerDescription            `json:"issuer"`
-	LinkDetail LinkSimple                   `json:"linkDetail"`
-	QrCode     AuthenticationQrCodeResponse `json:"qrCode"`
-	SessionID  string                       `json:"sessionID"`
+	Issuer     IssuerDescription `json:"issuer"`
+	LinkDetail LinkSimple        `json:"linkDetail"`
+	QrCode     string            `json:"qrCode"`
+	SessionID  string            `json:"sessionID"`
 }
 
 // CredentialSubject defines model for CredentialSubject.
@@ -136,6 +144,11 @@ type GenericErrorMessage struct {
 // GenericMessage defines model for GenericMessage.
 type GenericMessage struct {
 	Message string `json:"message"`
+}
+
+// GetAuthenticationConnectionResponse defines model for GetAuthenticationConnectionResponse.
+type GetAuthenticationConnectionResponse struct {
+	Connection AuthenticationConnection `json:"connection"`
 }
 
 // GetClaimMTPResponse defines model for GetClaimMTPResponse.
@@ -158,7 +171,7 @@ type GetClaimMTPResponse struct {
 
 // GetConnectionResponse defines model for GetConnectionResponse.
 type GetConnectionResponse struct {
-	CreatedAt   time.Time    `json:"createdAt"`
+	CreatedAt   TimeUTC      `json:"createdAt"`
 	Credentials []Credential `json:"credentials"`
 	Id          string       `json:"id"`
 	IssuerID    string       `json:"issuerID"`
@@ -170,9 +183,9 @@ type GetConnectionsResponse = []GetConnectionResponse
 
 // GetLinkQrCodeResponse defines model for GetLinkQrCodeResponse.
 type GetLinkQrCodeResponse struct {
-	LinkDetail LinkSimple      `json:"linkDetail"`
-	QrCode     *QrCodeResponse `json:"qrCode,omitempty"`
-	Status     *string         `json:"status,omitempty"`
+	LinkDetail LinkSimple `json:"linkDetail"`
+	QrCode     *string    `json:"qrCode,omitempty"`
+	Status     *string    `json:"status,omitempty"`
 }
 
 // Health defines model for Health.
@@ -201,19 +214,19 @@ type KeyValue struct {
 
 // Link defines model for Link.
 type Link struct {
-	Active               bool                `json:"active"`
-	CreatedAt            time.Time           `json:"createdAt"`
-	CredentialExpiration *openapi_types.Date `json:"credentialExpiration"`
-	CredentialSubject    CredentialSubject   `json:"credentialSubject"`
-	Expiration           *time.Time          `json:"expiration"`
-	Id                   uuid.UUID           `json:"id"`
-	IssuedClaims         int                 `json:"issuedClaims"`
-	MaxIssuance          *int                `json:"maxIssuance"`
-	ProofTypes           []string            `json:"proofTypes"`
-	SchemaHash           string              `json:"schemaHash"`
-	SchemaType           string              `json:"schemaType"`
-	SchemaUrl            string              `json:"schemaUrl"`
-	Status               LinkStatus          `json:"status"`
+	Active               bool              `json:"active"`
+	CreatedAt            TimeUTC           `json:"createdAt"`
+	CredentialExpiration *TimeUTC          `json:"credentialExpiration"`
+	CredentialSubject    CredentialSubject `json:"credentialSubject"`
+	Expiration           *TimeUTC          `json:"expiration"`
+	Id                   uuid.UUID         `json:"id"`
+	IssuedClaims         int               `json:"issuedClaims"`
+	MaxIssuance          *int              `json:"maxIssuance"`
+	ProofTypes           []string          `json:"proofTypes"`
+	SchemaHash           string            `json:"schemaHash"`
+	SchemaType           string            `json:"schemaType"`
+	SchemaUrl            string            `json:"schemaUrl"`
+	Status               LinkStatus        `json:"status"`
 }
 
 // LinkStatus defines model for Link.Status.
@@ -237,27 +250,16 @@ type PublishIdentityStateResponse struct {
 	TxID               *string `json:"txID,omitempty"`
 }
 
-// QrCodeBodyResponse defines model for QrCodeBodyResponse.
-type QrCodeBodyResponse struct {
-	Credentials []QrCodeCredentialResponse `json:"credentials"`
-	Url         string                     `json:"url"`
+// QrCodeLinkShortResponse defines model for QrCodeLinkShortResponse.
+type QrCodeLinkShortResponse struct {
+	QrCodeLink string     `json:"qrCodeLink"`
+	SessionID  UUIDString `json:"sessionID"`
 }
 
-// QrCodeCredentialResponse defines model for QrCodeCredentialResponse.
-type QrCodeCredentialResponse struct {
-	Description string `json:"description"`
-	Id          string `json:"id"`
-}
-
-// QrCodeResponse defines model for QrCodeResponse.
-type QrCodeResponse struct {
-	Body QrCodeBodyResponse `json:"body"`
-	From string             `json:"from"`
-	Id   string             `json:"id"`
-	Thid string             `json:"thid"`
-	To   string             `json:"to"`
-	Typ  string             `json:"typ"`
-	Type string             `json:"type"`
+// QrCodeLinkWithSchemaTypeShortResponse defines model for QrCodeLinkWithSchemaTypeShortResponse.
+type QrCodeLinkWithSchemaTypeShortResponse struct {
+	QrCodeLink string `json:"qrCodeLink"`
+	SchemaType string `json:"schemaType"`
 }
 
 // RevocationStatusResponse defines model for RevocationStatusResponse.
@@ -285,15 +287,15 @@ type RevokeCredentialResponse struct {
 
 // Schema defines model for Schema.
 type Schema struct {
-	BigInt      string    `json:"bigInt"`
-	CreatedAt   time.Time `json:"createdAt"`
-	Description *string   `json:"description"`
-	Hash        string    `json:"hash"`
-	Id          string    `json:"id"`
-	Title       *string   `json:"title"`
-	Type        string    `json:"type"`
-	Url         string    `json:"url"`
-	Version     string    `json:"version"`
+	BigInt      string  `json:"bigInt"`
+	CreatedAt   TimeUTC `json:"createdAt"`
+	Description *string `json:"description"`
+	Hash        string  `json:"hash"`
+	Id          string  `json:"id"`
+	Title       *string `json:"title"`
+	Type        string  `json:"type"`
+	Url         string  `json:"url"`
+	Version     string  `json:"version"`
 }
 
 // StateStatusResponse defines model for StateStatusResponse.
@@ -304,7 +306,7 @@ type StateStatusResponse struct {
 // StateTransaction defines model for StateTransaction.
 type StateTransaction struct {
 	Id          int64                  `json:"id"`
-	PublishDate time.Time              `json:"publishDate"`
+	PublishDate TimeUTC                `json:"publishDate"`
 	State       string                 `json:"state"`
 	Status      StateTransactionStatus `json:"status"`
 	TxID        string                 `json:"txID"`
@@ -316,10 +318,16 @@ type StateTransactionStatus string
 // StateTransactionsResponse defines model for StateTransactionsResponse.
 type StateTransactionsResponse = []StateTransaction
 
+// TimeUTC defines model for TimeUTC.
+type TimeUTC = timeapi.Time
+
 // UUIDResponse defines model for UUIDResponse.
 type UUIDResponse struct {
 	Id string `json:"id"`
 }
+
+// UUIDString defines model for UUIDString.
+type UUIDString = string
 
 // Id defines model for id.
 type Id = uuid.UUID
@@ -455,6 +463,11 @@ type GetRevocationStatusParams struct {
 	StateHash *PathStateHash `form:"state_hash,omitempty" json:"state_hash,omitempty"`
 }
 
+// GetQrFromStoreParams defines parameters for GetQrFromStore.
+type GetQrFromStoreParams struct {
+	Id *uuid.UUID `form:"id,omitempty" json:"id,omitempty"`
+}
+
 // GetSchemasParams defines parameters for GetSchemas.
 type GetSchemasParams struct {
 	// Query Query string to do full text search in schema types and attributes.
@@ -508,6 +521,9 @@ type ServerInterface interface {
 	// Get Connection QRCode
 	// (GET /v1/authentication/qrcode)
 	AuthQRCode(w http.ResponseWriter, r *http.Request)
+	// Get Authentication Connection
+	// (GET /v1/authentication/sessions/{id})
+	GetAuthenticationConnection(w http.ResponseWriter, r *http.Request, id Id)
 	// Get Claim MTP
 	// (GET /v1/claims/{id}/mtp)
 	GetClaimMTP(w http.ResponseWriter, r *http.Request, id Id, params GetClaimMTPParams)
@@ -577,6 +593,9 @@ type ServerInterface interface {
 	// Websocket For Getting Claim Status
 	// (GET /v1/credentials/{user-id}/{claim-type}/subscribe)
 	SubscribeToClaimWebsocket(w http.ResponseWriter, r *http.Request, userId PathIdentifier, claimType PathClaimType)
+	// QrCode body
+	// (GET /v1/qr-store)
+	GetQrFromStore(w http.ResponseWriter, r *http.Request, params GetQrFromStoreParams)
 	// Get Schemas
 	// (GET /v1/schemas)
 	GetSchemas(w http.ResponseWriter, r *http.Request, params GetSchemasParams)
@@ -649,6 +668,12 @@ func (_ Unimplemented) AuthCallback(w http.ResponseWriter, r *http.Request, para
 // Get Connection QRCode
 // (GET /v1/authentication/qrcode)
 func (_ Unimplemented) AuthQRCode(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get Authentication Connection
+// (GET /v1/authentication/sessions/{id})
+func (_ Unimplemented) GetAuthenticationConnection(w http.ResponseWriter, r *http.Request, id Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -787,6 +812,12 @@ func (_ Unimplemented) ClaimOffer(w http.ResponseWriter, r *http.Request, userId
 // Websocket For Getting Claim Status
 // (GET /v1/credentials/{user-id}/{claim-type}/subscribe)
 func (_ Unimplemented) SubscribeToClaimWebsocket(w http.ResponseWriter, r *http.Request, userId PathIdentifier, claimType PathClaimType) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// QrCode body
+// (GET /v1/qr-store)
+func (_ Unimplemented) GetQrFromStore(w http.ResponseWriter, r *http.Request, params GetQrFromStoreParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -974,6 +1005,34 @@ func (siw *ServerInterfaceWrapper) AuthQRCode(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.AuthQRCode(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetAuthenticationConnection operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthenticationConnection(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "id", runtime.ParamLocationPath, chi.URLParam(r, "id"), &id)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAuthenticationConnection(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1728,6 +1787,34 @@ func (siw *ServerInterfaceWrapper) SubscribeToClaimWebsocket(w http.ResponseWrit
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// GetQrFromStore operation middleware
+func (siw *ServerInterfaceWrapper) GetQrFromStore(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetQrFromStoreParams
+
+	// ------------- Optional query parameter "id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "id", r.URL.Query(), &params.Id)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetQrFromStore(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // GetSchemas operation middleware
 func (siw *ServerInterfaceWrapper) GetSchemas(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -2009,6 +2096,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/v1/authentication/qrcode", wrapper.AuthQRCode)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/authentication/sessions/{id}", wrapper.GetAuthenticationConnection)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/claims/{id}/mtp", wrapper.GetClaimMTP)
 	})
 	r.Group(func(r chi.Router) {
@@ -2076,6 +2166,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/credentials/{user-id}/{claim-type}/subscribe", wrapper.SubscribeToClaimWebsocket)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/qr-store", wrapper.GetQrFromStore)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/schemas", wrapper.GetSchemas)
@@ -2284,7 +2377,7 @@ type AuthQRCodeResponseObject interface {
 	VisitAuthQRCodeResponse(w http.ResponseWriter) error
 }
 
-type AuthQRCode200JSONResponse AuthenticationQrCodeResponse
+type AuthQRCode200JSONResponse QrCodeLinkShortResponse
 
 func (response AuthQRCode200JSONResponse) VisitAuthQRCodeResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2296,6 +2389,59 @@ func (response AuthQRCode200JSONResponse) VisitAuthQRCodeResponse(w http.Respons
 type AuthQRCode500JSONResponse struct{ N500JSONResponse }
 
 func (response AuthQRCode500JSONResponse) VisitAuthQRCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthenticationConnectionRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type GetAuthenticationConnectionResponseObject interface {
+	VisitGetAuthenticationConnectionResponse(w http.ResponseWriter) error
+}
+
+type GetAuthenticationConnection200JSONResponse GetAuthenticationConnectionResponse
+
+func (response GetAuthenticationConnection200JSONResponse) VisitGetAuthenticationConnectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthenticationConnection400JSONResponse struct{ N400JSONResponse }
+
+func (response GetAuthenticationConnection400JSONResponse) VisitGetAuthenticationConnectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthenticationConnection401JSONResponse struct{ N401JSONResponse }
+
+func (response GetAuthenticationConnection401JSONResponse) VisitGetAuthenticationConnectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthenticationConnection404JSONResponse struct{ N404JSONResponse }
+
+func (response GetAuthenticationConnection404JSONResponse) VisitGetAuthenticationConnectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthenticationConnection500JSONResponse struct{ N500JSONResponse }
+
+func (response GetAuthenticationConnection500JSONResponse) VisitGetAuthenticationConnectionResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -3087,7 +3233,7 @@ type GetCredentialQrCodeResponseObject interface {
 	VisitGetCredentialQrCodeResponse(w http.ResponseWriter) error
 }
 
-type GetCredentialQrCode200JSONResponse QrCodeResponse
+type GetCredentialQrCode200JSONResponse QrCodeLinkWithSchemaTypeShortResponse
 
 func (response GetCredentialQrCode200JSONResponse) VisitGetCredentialQrCodeResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -3132,7 +3278,7 @@ type ClaimOfferResponseObject interface {
 	VisitClaimOfferResponse(w http.ResponseWriter) error
 }
 
-type ClaimOffer200JSONResponse QrCodeResponse
+type ClaimOffer200JSONResponse ClaimOfferResponse
 
 func (response ClaimOffer200JSONResponse) VisitClaimOfferResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -3188,6 +3334,50 @@ func (response SubscribeToClaimWebsocket200Response) VisitSubscribeToClaimWebsoc
 type SubscribeToClaimWebsocket500JSONResponse struct{ N500JSONResponse }
 
 func (response SubscribeToClaimWebsocket500JSONResponse) VisitSubscribeToClaimWebsocketResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetQrFromStoreRequestObject struct {
+	Params GetQrFromStoreParams
+}
+
+type GetQrFromStoreResponseObject interface {
+	VisitGetQrFromStoreResponse(w http.ResponseWriter) error
+}
+
+type GetQrFromStore200JSONResponse map[string]interface{}
+
+func (response GetQrFromStore200JSONResponse) VisitGetQrFromStoreResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetQrFromStore400JSONResponse struct{ N400JSONResponse }
+
+func (response GetQrFromStore400JSONResponse) VisitGetQrFromStoreResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetQrFromStore404JSONResponse struct{ N404JSONResponse }
+
+func (response GetQrFromStore404JSONResponse) VisitGetQrFromStoreResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetQrFromStore500JSONResponse struct{ N500JSONResponse }
+
+func (response GetQrFromStore500JSONResponse) VisitGetQrFromStoreResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -3452,6 +3642,9 @@ type StrictServerInterface interface {
 	// Get Connection QRCode
 	// (GET /v1/authentication/qrcode)
 	AuthQRCode(ctx context.Context, request AuthQRCodeRequestObject) (AuthQRCodeResponseObject, error)
+	// Get Authentication Connection
+	// (GET /v1/authentication/sessions/{id})
+	GetAuthenticationConnection(ctx context.Context, request GetAuthenticationConnectionRequestObject) (GetAuthenticationConnectionResponseObject, error)
 	// Get Claim MTP
 	// (GET /v1/claims/{id}/mtp)
 	GetClaimMTP(ctx context.Context, request GetClaimMTPRequestObject) (GetClaimMTPResponseObject, error)
@@ -3521,6 +3714,9 @@ type StrictServerInterface interface {
 	// Websocket For Getting Claim Status
 	// (GET /v1/credentials/{user-id}/{claim-type}/subscribe)
 	SubscribeToClaimWebsocket(ctx context.Context, request SubscribeToClaimWebsocketRequestObject) (SubscribeToClaimWebsocketResponseObject, error)
+	// QrCode body
+	// (GET /v1/qr-store)
+	GetQrFromStore(ctx context.Context, request GetQrFromStoreRequestObject) (GetQrFromStoreResponseObject, error)
 	// Get Schemas
 	// (GET /v1/schemas)
 	GetSchemas(ctx context.Context, request GetSchemasRequestObject) (GetSchemasResponseObject, error)
@@ -3776,6 +3972,32 @@ func (sh *strictHandler) AuthQRCode(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(AuthQRCodeResponseObject); ok {
 		if err := validResponse.VisitAuthQRCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAuthenticationConnection operation middleware
+func (sh *strictHandler) GetAuthenticationConnection(w http.ResponseWriter, r *http.Request, id Id) {
+	var request GetAuthenticationConnectionRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAuthenticationConnection(ctx, request.(GetAuthenticationConnectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAuthenticationConnection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAuthenticationConnectionResponseObject); ok {
+		if err := validResponse.VisitGetAuthenticationConnectionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4405,6 +4627,32 @@ func (sh *strictHandler) SubscribeToClaimWebsocket(w http.ResponseWriter, r *htt
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SubscribeToClaimWebsocketResponseObject); ok {
 		if err := validResponse.VisitSubscribeToClaimWebsocketResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetQrFromStore operation middleware
+func (sh *strictHandler) GetQrFromStore(w http.ResponseWriter, r *http.Request, params GetQrFromStoreParams) {
+	var request GetQrFromStoreRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetQrFromStore(ctx, request.(GetQrFromStoreRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetQrFromStore")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetQrFromStoreResponseObject); ok {
+		if err := validResponse.VisitGetQrFromStoreResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

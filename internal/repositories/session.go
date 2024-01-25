@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/iden3/iden3comm/protocol"
+	"github.com/iden3/iden3comm/v2/protocol"
 
 	"github.com/rarimo/issuer-node/internal/core/ports"
 	"github.com/rarimo/issuer-node/pkg/cache"

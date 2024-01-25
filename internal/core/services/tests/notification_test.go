@@ -5,20 +5,22 @@ import (
 	"os"
 	"testing"
 
+	commonEth "github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
-	core "github.com/iden3/go-iden3-core"
+	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/rarimo/issuer-node/internal/common"
 	"github.com/rarimo/issuer-node/internal/core/domain"
 	"github.com/rarimo/issuer-node/internal/core/event"
+	"github.com/rarimo/issuer-node/internal/core/ports"
 	"github.com/rarimo/issuer-node/internal/core/services"
 	"github.com/rarimo/issuer-node/internal/db/tests"
 	"github.com/rarimo/issuer-node/internal/gateways"
-	"github.com/rarimo/issuer-node/internal/loader"
 	"github.com/rarimo/issuer-node/internal/log"
 	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/credentials/revocation_status"
 	"github.com/rarimo/issuer-node/pkg/http"
 	"github.com/rarimo/issuer-node/pkg/pubsub"
 	"github.com/rarimo/issuer-node/pkg/reverse_hash"
@@ -35,27 +37,21 @@ func TestNotification_SendNotification(t *testing.T) {
 	claimsRepo := repositories.NewClaims()
 	identityStateRepo := repositories.NewIdentityState()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
-	mtrRepo := repositories.NewMerkleTreeNodesRepository()
-	mtService := services.NewIdentityMerkleTrees(mtRepo, mtrRepo)
+	mtService := services.NewIdentityMerkleTrees(mtRepo)
 	revocationRepository := repositories.NewRevocation()
-	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
-	identityService := services.NewIdentity(keyStore, identityRepo, mtRepo, identityStateRepo, mtService, claimsRepo, revocationRepository, connectionsRepository, storage, rhsp, nil, nil, pubsub.NewMock())
-	schemaLoader := loader.CachedFactory(loader.MultiProtocolFactory(ipfsGateway), cachex)
-	claimsConf := services.ClaimCfg{
-		RHSEnabled: false,
-		Host:       "http://host",
-		UIHost:     "http://host",
-	}
-	credentialsService := services.NewClaim(claimsRepo, identityService, mtService, identityStateRepo, schemaLoader, storage, claimsConf, pubsub.NewMock(), ipfsGateway)
+	rhsFactory := reverse_hash.NewFactory(cfg.CredentialStatus.RHS.URL, nil, commonEth.HexToAddress(cfg.CredentialStatus.OnchainTreeStore.SupportedTreeStoreContract), reverse_hash.DefaultRHSTimeOut)
+	revocationStatusResolver := revocation_status.NewRevocationStatusResolver(cfg.CredentialStatus)
+	identityService := services.NewIdentity(keyStore, identityRepo, mtRepo, identityStateRepo, mtService, nil, claimsRepo, revocationRepository, connectionsRepository, storage, nil, nil, pubsub.NewMock(), cfg.CredentialStatus, rhsFactory, revocationStatusResolver)
+	credentialsService := services.NewClaim(claimsRepo, identityService, nil, mtService, identityStateRepo, docLoader, storage, cfg.CredentialStatus.DirectStatus.GetURL(), pubsub.NewMock(), ipfsGateway, revocationStatusResolver)
 	connectionsService := services.NewConnection(connectionsRepository, storage)
-	iden, err := identityService.Create(ctx, method, blockchain, network, "polygon-test")
+	iden, err := identityService.Create(ctx, "polygon-test", &ports.DIDCreationOptions{Method: method, Blockchain: blockchain, Network: network, KeyType: BJJ})
 	require.NoError(t, err)
 
-	did, err := core.ParseDID(iden.Identifier)
+	did, err := w3c.ParseDID(iden.Identifier)
 	require.NoError(t, err)
 
-	userDID, err := core.ParseDID("did:polygonid:polygon:mumbai:2qH7XAwYQzCp9VfhpNgeLtK2iCehDDrfMWUCEg5ig5")
+	userDID, err := w3c.ParseDID("did:polygonid:polygon:mumbai:2qH7XAwYQzCp9VfhpNgeLtK2iCehDDrfMWUCEg5ig5")
 	require.NoError(t, err)
 
 	notificationGateway := gateways.NewPushNotificationClient(http.DefaultHTTPClientWithRetry)

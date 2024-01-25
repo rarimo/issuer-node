@@ -12,7 +12,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	vault "github.com/hashicorp/vault/api"
 
+	"github.com/rarimo/issuer-node/internal/buildinfo"
 	"github.com/rarimo/issuer-node/internal/config"
 	"github.com/rarimo/issuer-node/internal/core/ports"
 	"github.com/rarimo/issuer-node/internal/core/services"
@@ -26,13 +28,18 @@ import (
 	"github.com/rarimo/issuer-node/internal/repositories"
 	"github.com/rarimo/issuer-node/pkg/blockchain/eth"
 	"github.com/rarimo/issuer-node/pkg/cache"
-	"github.com/rarimo/issuer-node/pkg/loaders"
+	"github.com/rarimo/issuer-node/pkg/credentials/revocation_status"
+	circuitLoaders "github.com/rarimo/issuer-node/pkg/loaders"
 	"github.com/rarimo/issuer-node/pkg/pubsub"
 	"github.com/rarimo/issuer-node/pkg/reverse_hash"
 )
 
+var build = buildinfo.Revision()
+
 func main() {
-	cfg, err := config.Load("./config.toml")
+	log.Info(context.Background(), "starting issuer node...", "revision", build)
+
+	cfg, err := config.Load("")
 	if err != nil {
 		log.Error(context.Background(), "cannot load config", "err", err)
 		panic(err)
@@ -44,11 +51,6 @@ func main() {
 
 	if err := cfg.SanitizeAPIUI(ctx); err != nil {
 		log.Error(ctx, "there are errors in the configuration that prevent server to start", "err", err)
-		return
-	}
-
-	if cfg.APIUI.Issuer == "" {
-		log.Error(ctx, "issuer DID is not set")
 		return
 	}
 
@@ -74,16 +76,26 @@ func main() {
 		}
 	}(storage)
 
-	var schemaLoader loader.Factory
-	schemaLoader = loader.MultiProtocolFactory(cfg.IFPS.GatewayURL)
-	if cfg.APIUI.SchemaCache != nil && *cfg.APIUI.SchemaCache {
-		schemaLoader = loader.CachedFactory(schemaLoader, cachex)
+	// TODO: Cache only if cfg.APIUI.SchemaCache == true
+	schemaLoader := loader.NewDocumentLoader(cfg.IPFS.GatewayURL)
+
+	var vaultCli *vault.Client
+	var vaultErr error
+	vaultCfg := providers.Config{
+		UserPassAuthEnabled: cfg.VaultUserPassAuthEnabled,
+		Address:             cfg.KeyStore.Address,
+		Token:               cfg.KeyStore.Token,
+		Pass:                cfg.VaultUserPassAuthPassword,
 	}
 
-	vaultCli, err := providers.NewVaultClient(cfg.KeyStore.Address, cfg.KeyStore.Token)
-	if err != nil {
-		log.Error(ctx, "cannot init vault client: ", "err", err)
-		panic(err)
+	vaultCli, vaultErr = providers.VaultClient(ctx, vaultCfg)
+	if vaultErr != nil {
+		log.Error(ctx, "cannot initialize vault client", "err", err)
+		return
+	}
+
+	if vaultCfg.UserPassAuthEnabled {
+		go providers.RenewToken(ctx, vaultCli, vaultCfg)
 	}
 
 	bjjKeyProvider, err := kms.NewVaultPluginIden3KeyProvider(vaultCli, cfg.KeyStore.PluginIden3MountPath, kms.KeyTypeBabyJubJub)
@@ -111,6 +123,12 @@ func main() {
 		panic(err)
 	}
 
+	err = config.CheckDID(ctx, cfg, vaultCli)
+	if err != nil {
+		log.Error(ctx, "cannot initialize did", "err", err)
+		return
+	}
+
 	identityRepo := repositories.NewIdentity()
 	claimsRepo := repositories.NewClaims()
 	mtRepo := repositories.NewIdentityMerkleTreeRepository()
@@ -118,27 +136,9 @@ func main() {
 	identityStateRepo := repositories.NewIdentityState()
 	revocationRepository := repositories.NewRevocation()
 	mtService := services.NewIdentityMerkleTrees(mtRepo, merkleTreeRootsRepository)
+	qrService := services.NewQrStoreService(cachex)
 
-	rhsp := reverse_hash.NewRhsPublisher(nil, false)
 	connectionsRepository := repositories.NewConnections()
-	identityService := services.NewIdentity(keyStore, identityRepo, mtRepo, identityStateRepo, mtService, claimsRepo, revocationRepository, connectionsRepository, storage, rhsp, nil, nil, pubsub.NewMock())
-	claimsService := services.NewClaim(
-		claimsRepo,
-		identityService,
-		mtService,
-		identityStateRepo,
-		schemaLoader,
-		storage,
-		services.ClaimCfg{
-			RHSEnabled:   cfg.ReverseHashService.Enabled,
-			RHSUrl:       cfg.ReverseHashService.URL,
-			Host:         cfg.ServerUrl,
-			UIHost:       cfg.APIUI.ServerURL,
-			SingleIssuer: cfg.SingleIssuer,
-		},
-		ps,
-		cfg.IFPS.GatewayURL,
-	)
 
 	commonClient, err := ethclient.Dial(cfg.Ethereum.URL)
 	if err != nil {
@@ -162,9 +162,15 @@ func main() {
 		RPCResponseTimeout:     cfg.Ethereum.RPCResponseTimeout,
 		WaitReceiptCycleTime:   cfg.Ethereum.WaitReceiptCycleTime,
 		WaitBlockCycleTime:     cfg.Ethereum.WaitBlockCycleTime,
-	})
+	}, keyStore)
 
-	circuitsLoaderService := loaders.NewCircuits(cfg.Circuit.Path)
+	rhsFactory := reverse_hash.NewFactory(cfg.CredentialStatus.RHS.GetURL(), cl, common.HexToAddress(cfg.CredentialStatus.OnchainTreeStore.SupportedTreeStoreContract), reverse_hash.DefaultRHSTimeOut)
+	revocationStatusResolver := revocation_status.NewRevocationStatusResolver(cfg.CredentialStatus)
+
+	identityService := services.NewIdentity(keyStore, identityRepo, mtRepo, identityStateRepo, mtService, qrService, claimsRepo, revocationRepository, connectionsRepository, storage, nil, nil, pubsub.NewMock(), cfg.CredentialStatus, rhsFactory, revocationStatusResolver)
+	claimsService := services.NewClaim(claimsRepo, identityService, qrService, mtService, identityStateRepo, schemaLoader, storage, cfg.ServerUrl, cfg.APIUI.ServerURL, cfg.SingleIssuer, ps, cfg.IPFS.GatewayURL, revocationStatusResolver)
+
+	circuitsLoaderService := circuitLoaders.NewCircuits(cfg.Circuit.Path)
 	proofService := initProofService(ctx, cfg, circuitsLoaderService)
 
 	transactionService, err := gateways.NewTransaction(cl, cfg.Ethereum.ConfirmationBlockCount)
@@ -203,7 +209,7 @@ func main() {
 	log.Info(ctx, "Finished")
 }
 
-func initProofService(ctx context.Context, config *config.Configuration, circuitLoaderService *loaders.Circuits) ports.ZKGenerator {
+func initProofService(ctx context.Context, config *config.Configuration, circuitLoaderService *circuitLoaders.Circuits) ports.ZKGenerator {
 	log.Info(ctx, "native prover enabled", "enabled", config.NativeProofGenerationEnabled)
 	if config.NativeProofGenerationEnabled {
 		proverConfig := &services.NativeProverConfig{
@@ -235,7 +241,7 @@ func run(
 }
 
 func onChainPublisherRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher) {
-	ticker := time.NewTicker(cfg.OnChainCheckStatusFrequency)
+	ticker := time.NewTicker(cfg.StatesTransitionFrequency)
 	defer ticker.Stop()
 
 	for {
@@ -287,7 +293,7 @@ func onChainPublisherRunner(ctx context.Context, cfg *config.Configuration, publ
 }
 
 func statusCheckerRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher) {
-	ticker := time.NewTicker(cfg.StatesTransitionFrequency)
+	ticker := time.NewTicker(cfg.OnChainCheckStatusFrequency)
 	defer ticker.Stop()
 
 	for {

@@ -41,7 +41,6 @@ export type CredentialLinkIssuance = CredentialIssuance & {
 };
 
 // Parsers
-
 const dayjsInstanceParser = getStrictParser<dayjs.Dayjs>()(
   z.custom<dayjs.Dayjs>(isDayjs, {
     message: "The provided input is not a valid Dayjs instance",
@@ -55,7 +54,7 @@ const formLiteralParser = getStrictParser<FormLiteralInput, FormLiteral>()(
     z.boolean(),
     z.null(),
     z.undefined(),
-    dayjsInstanceParser.transform((dayjs) => dayjs.toISOString()),
+    dayjsInstanceParser.transform((value) => (value.isValid() ? value.toISOString() : undefined)),
   ])
 );
 
@@ -209,49 +208,57 @@ function serializeDate(date: dayjs.Dayjs | Date, format: "date" | "date-time" | 
     format === "date"
       ? "YYYY-MM-DD"
       : format === "date-time"
-      ? "YYYY-MM-DDTHH:mm:ss.SSSZ"
-      : "HH:mm:ss.SSSZ";
+        ? "YYYY-MM-DDTHH:mm:ss.SSSZ"
+        : "HH:mm:ss.SSSZ";
 
   return dayjs(date).format(template);
 }
 
-function serializeAtrributeValue({
+function serializeAttributeValue({
   attributeValue,
 }: {
   attributeValue: AttributeValue;
 }): JsonLiteral | JsonObject | undefined {
   switch (attributeValue.type) {
     case "integer":
-    case "number":
-    case "null":
+    case "number": {
+      const parsedConst = z.number().safeParse(attributeValue.schema.const);
+      return parsedConst.success ? parsedConst.data : attributeValue.value;
+    }
     case "boolean": {
-      return attributeValue.value;
+      const parsedConst = z.boolean().safeParse(attributeValue.schema.const);
+      return parsedConst.success ? parsedConst.data : attributeValue.value;
     }
     case "string": {
-      switch (attributeValue.schema.format) {
-        case "date":
-        case "date-time":
-        case "time": {
-          const parsedDate = z.coerce.date().safeParse(attributeValue.value);
-          return parsedDate.success
-            ? serializeDate(parsedDate.data, attributeValue.schema.format)
-            : attributeValue.value;
-        }
-        default: {
-          return attributeValue.value;
+      const parsedConst = z.string().safeParse(attributeValue.schema.const);
+      if (parsedConst.success) {
+        return parsedConst.data;
+      } else {
+        switch (attributeValue.schema.format) {
+          case "date":
+          case "date-time":
+          case "time": {
+            const parsedDate = z.coerce.date().safeParse(attributeValue.value);
+            return parsedDate.success
+              ? serializeDate(parsedDate.data, attributeValue.schema.format)
+              : attributeValue.value;
+          }
+          default: {
+            return attributeValue.value;
+          }
         }
       }
     }
     case "object": {
       return attributeValue.value !== undefined
-        ? attributeValue.value.reduce(
-            (acc, curr) => ({
-              ...acc,
-              [curr.name]: serializeAtrributeValue({ attributeValue: curr }),
-            }),
-            {}
-          )
+        ? attributeValue.value.reduce((acc: JsonObject | undefined, curr) => {
+            const value = serializeAttributeValue({ attributeValue: curr });
+            return value !== undefined ? { ...acc, [curr.name]: value } : acc;
+          }, undefined)
         : undefined;
+    }
+    case "null": {
+      return attributeValue.value;
     }
     case "array": {
       return undefined;
@@ -278,7 +285,7 @@ export function serializeSchemaForm({
     );
     if (parsedAttributeValue.success) {
       return {
-        data: serializeAtrributeValue({ attributeValue: parsedAttributeValue.data }),
+        data: serializeAttributeValue({ attributeValue: parsedAttributeValue.data }),
         success: true,
       };
     } else {

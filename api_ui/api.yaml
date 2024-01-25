@@ -41,6 +41,34 @@ paths:
           $ref: '#/components/responses/500'
 
   #authentication
+  /v1/authentication/sessions/{id}:
+    get:
+      summary: Get Authentication Connection
+      operationId: getAuthenticationConnection
+      description: get authentication connection
+      parameters:
+        - $ref: '#/components/parameters/id'
+      tags:
+          - Auth
+          - Connection
+      security:
+        - basicAuth: [ ]
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetAuthenticationConnectionResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '404':
+          $ref: '#/components/responses/404'
+        '500':
+          $ref: '#/components/responses/500'
+
   /v1/authentication/qrcode:
     get:
       summary: Get Connection QRCode
@@ -55,7 +83,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthenticationQrCodeResponse'
+                $ref: '#/components/schemas/QrCodeLinkShortResponse'
         '500':
           $ref: '#/components/responses/500'
 
@@ -269,12 +297,12 @@ paths:
           name: status
           schema:
             type: string
-            enum: [all, revoked, expired]
+            enum: [ all, revoked, expired ]
           description: >
-             Schema type:
-               * `all` - All Schemas. (default value)
-               * `revoked` - Only revoked schemas
-               * `expired` - Only expired schemas
+            Schema type:
+              * `all` - All Schemas. (default value)
+              * `revoked` - Only revoked schemas
+              * `expired` - Only expired schemas
         - in: query
           name: query
           schema:
@@ -358,7 +386,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QrCodeResponse'
+                $ref: '#/components/schemas/ClaimOfferResponse'
         '400':
           $ref: '#/components/responses/400'
         '404':
@@ -444,7 +472,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QrCodeResponse'
+                $ref: '#/components/schemas/QrCodeLinkWithSchemaTypeShortResponse'
         '400':
           $ref: '#/components/responses/400'
         '404':
@@ -579,7 +607,36 @@ paths:
         '500':
           $ref: '#/components/responses/500'
 
-
+  /v1/qr-store:
+    get:
+      summary: QrCode body
+      operationId: GetQrFromStore
+      description: Returns a previously generated QR code via url shortener method
+      tags:
+        - Agent
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: string
+            x-go-type: uuid.UUID
+            x-go-type-import:
+              name: uuid
+              path: github.com/google/uuid
+            example: 8edd8112-c415-11ed-b036-debe37e1cbd6
+      responses:
+        '200':
+          description: A json to generate a QR code
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/400'
+        '404':
+          $ref: '#/components/responses/404'
+        '500':
+          $ref: '#/components/responses/500'
 
   #state:
   /v1/state/publish:
@@ -696,7 +753,7 @@ paths:
         '400':
           $ref: '#/components/responses/400'
         '404':
-            $ref: '#/components/responses/404'
+          $ref: '#/components/responses/404'
         '500':
           $ref: '#/components/responses/500'
 
@@ -1052,37 +1109,31 @@ components:
           type: string
           example: did:polygonid:polygon:mumbai:2qFpPHotk6oyaX1fcrpQFT4BMnmg8YszUwxYtaoGoe
 
-    QrCodeResponse:
+    QrCodeLinkShortResponse:
       type: object
       required:
-        - id
-        - typ
-        - type
-        - thid
-        - body
-        - from
-        - to
+        - qrCodeLink
+        - sessionID
       properties:
-        id:
+        qrCodeLink:
           type: string
-          example: f7c6cdf9-878e-40c3-89f1-85bf1fb80865
-        typ:
+          example: iden3comm://?request_uri=https%3A%2F%2Fissuer-demo.polygonid.me%2Fapi%2Fqr-store%3Fid%3Df780a169-8959-4380-9461-f7200e2ed3f4
+        sessionID:
+          $ref: '#/components/schemas/UUIDString'
+
+
+    QrCodeLinkWithSchemaTypeShortResponse:
+      type: object
+      required:
+        - qrCodeLink
+        - schemaType
+      properties:
+        qrCodeLink:
           type: string
-          example: application/iden3comm-plain-json
-        type:
+          example: iden3comm://?request_uri=https%3A%2F%2Fissuer-demo.polygonid.me%2Fapi%2Fqr-store%3Fid%3Df780a169-8959-4380-9461-f7200e2ed3f4
+        schemaType:
           type: string
-          example: https://iden3-communication.io/authorization/1.0/request
-        thid:
-          type: string
-          example: f7c6cdf9-878e-40c3-89f1-85bf1fb80865
-        body:
-          $ref: '#/components/schemas/QrCodeBodyResponse'
-        from:
-          type: string
-          example: did:polygonid:polygon:mumbai:2qFpPHotk6oyaX1fcrpQFT4BMnmg8YszUwxYtaoGoe
-        to:
-          type: string
-          example: did:polygonid:polygon:mumbai:2qPtCq1WDpimtqsFPkpbBYzgzDbJ8i3pn9vHDLyF63
+          example: "vaccinationCertificate"
 
     QrCodeBodyResponse:
       type: object
@@ -1126,7 +1177,8 @@ components:
         issuer:
           $ref: '#/components/schemas/IssuerDescription'
         qrCode:
-          $ref: '#/components/schemas/AuthenticationQrCodeResponse'
+          type: string
+          example: iden3comm://?request_uri=https%3A%2F%2Fissuer-demo.polygonid.me%2Fapi%2Fqr-store%3Fid%3Df780a169-8959-4380-9461-f7200e2ed3f4
         sessionID:
           type: string
           example: ab5d5dbf-aaaa-bbbb-b983-f48afea64e05
@@ -1152,7 +1204,8 @@ components:
         - linkDetail
       properties:
         qrCode:
-          $ref: '#/components/schemas/QrCodeResponse'
+          type: string
+          example: iden3comm://?request_uri=https%3A%2F%2Fissuer-demo.polygonid.me%2Fapi%2Fqr-store%3Fid%3Df780a169-8959-4380-9461-f7200e2ed3f4
         status:
           type: string
           example: done | pending | pendingPublish
@@ -1168,6 +1221,11 @@ components:
           type: string
           x-omitempty: false
           example: c79c9c04-8c98-40f2-a7a0-5eeabf08d836
+
+    UUIDString:
+      type: string
+      x-omitempty: false
+      example: b7144f1c-d54e-4f67-a4f1-f2e7ff1beb07
 
     GenericErrorMessage:
       type: object
@@ -1204,17 +1262,11 @@ components:
           type: array
           items:
             type: string
-          example: ["BJJSignature2021"]
+          example: [ "BJJSignature2021" ]
         createdAt:
-          type: string
-          format: date-time
-          example: "2023-03-20T11:54:01.110295+01:00"
+          $ref: '#/components/schemas/TimeUTC'
         expiresAt:
-          type: string
-          format: date-time
-          x-omitempty: false
-          nullable: true
-          example: "2025-03-20T11:54:01.110295+01:00"
+          $ref: '#/components/schemas/TimeUTC'
         expired:
           type: boolean
           example: true
@@ -1244,6 +1296,9 @@ components:
         userID:
           type: string
           example: did:polygonid:polygon:mumbai:2qFpPHotk6oyaX1fcrpQFT4BMnmg8YszUwxYtaoGoe
+        schemaTypeDescription:
+          type: string
+          example: "KYC Age Credential"
 
     Link:
       type: object
@@ -1284,21 +1339,15 @@ components:
         issuedClaims:
           type: integer
         expiration:
-          type: string
-          format: date-time
-          example: 2023-03-17T10:18:01.400722+01:00
+          $ref: '#/components/schemas/TimeUTC'
           x-omitempty: false
           nullable: true
         credentialExpiration:
-          type: string
-          format: date
-          example: "2022-12-20"
+          $ref: '#/components/schemas/TimeUTC'
           x-omitempty: false
           nullable: true
         createdAt:
-          type: string
-          format: date-time
-          example: 2023-03-16T10:18:01.400722+01:00
+          $ref: '#/components/schemas/TimeUTC'
         active:
           type: boolean
         status:
@@ -1366,12 +1415,10 @@ components:
           type: string
           example: 13f9aadd4801d775e85a7ef45c2f6d02cdf83f0d724250417b165ff9cd88ee21
         publishDate:
-          type: string
-          format: date-time
-          example: 2023-03-17T10:18:01.400722+01:00
+          $ref: '#/components/schemas/TimeUTC'
         status:
           type: string
-          enum: [created, pending, published, failed]
+          enum: [ created, pending, published, failed ]
           example: published
 
     StateStatusResponse:
@@ -1396,6 +1443,34 @@ components:
       items:
         $ref: '#/components/schemas/GetConnectionResponse'
 
+    AuthenticationConnection:
+      type: object
+      required:
+        - id
+        - userID
+        - issuerID
+        - createdAt
+        - modifiedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/UUIDString'
+        userID:
+          $ref: '#/components/schemas/UUIDString'
+        issuerID:
+          $ref: '#/components/schemas/UUIDString'
+        createdAt:
+          $ref: '#/components/schemas/TimeUTC'
+        modifiedAt:
+          $ref: '#/components/schemas/TimeUTC'
+
+    GetAuthenticationConnectionResponse:
+      type: object
+      required:
+        - connection
+      properties:
+        connection:
+          $ref: '#/components/schemas/AuthenticationConnection'
+
     GetConnectionResponse:
       type: object
       required:
@@ -1418,9 +1493,7 @@ components:
           x-omitempty: false
           example: did:polygonid:polygon:mumbai:2qFpPHotk6oyaX1fcrpQFT4BMnmg8YszUwxYtaoGoe
         createdAt:
-          type: string
-          format: date-time
-          example: 2023-03-17T10:18:01.400722+01:00
+          $ref: '#/components/schemas/TimeUTC'
         credentials:
           type: array
           x-omitempty: false
@@ -1459,7 +1532,6 @@ components:
         mtProof:
           type: boolean
           example: true
-
     Schema:
       type: object
       required:
@@ -1492,10 +1564,8 @@ components:
           x-omitempty: false
           example: KYCCountryOfResidenceCredential
         createdAt:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/TimeUTC'
           x-omitempty: false
-          example: 2023-03-20T17:01:33.564119+01:00
         title:
           type: string
           x-omitempty: false
@@ -1618,6 +1688,8 @@ components:
                 value:
                   type: string
 
+    Any:
+      type: null
 
     #Agent
     AgentResponse:
@@ -1646,6 +1718,41 @@ components:
         to:
           type: string
 
+    ClaimOfferResponse:
+      type: object
+      required:
+        - body
+        - id
+        - typ
+        - type
+        - threadID
+        - from
+        - to
+      properties:
+        id:
+          type: string
+        typ:
+          type: string
+        type:
+          type: string
+        threadID:
+          type: string
+        body:
+          type: null
+        from:
+          type: string
+        to:
+          type: string
+
+    TimeUTC:
+      type: string
+      x-go-type: timeapi.Time
+      x-go-type-import:
+        name: timeapi
+        path: github.com/rarimo/issuer-node/internal/timeapi
+      example: '2023-10-26T10:59:08Z'
+      x-omitempty: false
+
   parameters:
     pathIdentifier:
       name: user-id
@@ -1667,7 +1774,7 @@ components:
       name: sessionID
       in: query
       required: true
-      description: | 
+      description: |
         Session ID e.g: 89d298fa-15a6-4a1d-ab13-d1069467eedd
       schema:
         type: string
@@ -1701,7 +1808,7 @@ components:
       name: id
       in: path
       required: true
-      description: | 
+      description: |
         UUID parameter, e.g: 8edd8112-c415-11ed-b036-debe37e1cbd6
       schema:
         type: string

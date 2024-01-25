@@ -4,20 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	sql "github.com/iden3/go-merkletree-sql/db/pgx/v2"
 	"math/big"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	core "github.com/iden3/go-iden3-core"
-	sql "github.com/iden3/go-merkletree-sql/db/pgx/v2"
+	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-merkletree-sql/v2"
-	"github.com/iden3/go-schema-processor/merklize"
-	"github.com/iden3/go-schema-processor/processor"
-	"github.com/iden3/go-schema-processor/verifiable"
-	"github.com/iden3/iden3comm/packers"
-	"github.com/iden3/iden3comm/protocol"
+	"github.com/iden3/go-schema-processor/v2/merklize"
+	"github.com/iden3/go-schema-processor/v2/processor"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
+	"github.com/iden3/iden3comm/v2/packers"
+	"github.com/iden3/iden3comm/v2/protocol"
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
@@ -27,9 +28,11 @@ import (
 	"github.com/rarimo/issuer-node/internal/core/event"
 	"github.com/rarimo/issuer-node/internal/core/ports"
 	"github.com/rarimo/issuer-node/internal/db"
+	"github.com/rarimo/issuer-node/internal/jsonschema"
 	"github.com/rarimo/issuer-node/internal/loader"
 	"github.com/rarimo/issuer-node/internal/log"
 	"github.com/rarimo/issuer-node/internal/repositories"
+	"github.com/rarimo/issuer-node/pkg/credentials/revocation_status"
 	"github.com/rarimo/issuer-node/pkg/pubsub"
 	"github.com/rarimo/issuer-node/pkg/rand"
 	schemaPkg "github.com/rarimo/issuer-node/pkg/schema"
@@ -47,43 +50,37 @@ var (
 	ErrInvalidCredentialSubject = errors.New("credential subject does not match the provided schema") // ErrInvalidCredentialSubject means the credentialSubject does not match the schema provided
 )
 
-// ClaimCfg claim service configuration
-type ClaimCfg struct {
-	RHSEnabled   bool // ReverseHash Enabled
-	RHSUrl       string
-	Host         string
-	UIHost       string
-	SingleIssuer bool
-}
-
 type claim struct {
-	cfg                     ClaimCfg
-	icRepo                  ports.ClaimsRepository
-	identitySrv             ports.IdentityService
-	mtService               ports.MtService
-	identityStateRepository ports.IdentityStateRepository
-	storage                 *db.Storage
-	loaderFactory           loader.Factory
-	publisher               pubsub.Publisher
-	ipfsClient              *shell.Shell
+	host                     string
+	uiHost                   string
+	singleIssuer             bool
+	icRepo                   ports.ClaimsRepository
+	identitySrv              ports.IdentityService
+	mtService                ports.MtService
+	qrService                ports.QrStoreService
+	identityStateRepository  ports.IdentityStateRepository
+	storage                  *db.Storage
+	loader                   loader.DocumentLoader
+	publisher                pubsub.Publisher
+	ipfsClient               *shell.Shell
+	revocationStatusResolver *revocation_status.RevocationStatusResolver
 }
 
 // NewClaim creates a new claim service
-func NewClaim(repo ports.ClaimsRepository, idenSrv ports.IdentityService, mtService ports.MtService, identityStateRepository ports.IdentityStateRepository, ld loader.Factory, storage *db.Storage, cfg ClaimCfg, ps pubsub.Publisher, ipfsGatewayURL string) ports.ClaimsService {
+func NewClaim(repo ports.ClaimsRepository, idenSrv ports.IdentityService, qrService ports.QrStoreService, mtService ports.MtService, identityStateRepository ports.IdentityStateRepository, ld loader.DocumentLoader, storage *db.Storage, host, uiHost string, singleIssuer bool, ps pubsub.Publisher, ipfsGatewayURL string, revocationStatusResolver *revocation_status.RevocationStatusResolver) ports.ClaimsService {
 	s := &claim{
-		cfg: ClaimCfg{
-			RHSEnabled: cfg.RHSEnabled,
-			RHSUrl:     cfg.RHSUrl,
-			Host:       cfg.Host,
-			UIHost:     cfg.UIHost,
-		},
-		icRepo:                  repo,
-		identitySrv:             idenSrv,
-		mtService:               mtService,
-		identityStateRepository: identityStateRepository,
-		storage:                 storage,
-		loaderFactory:           ld,
-		publisher:               ps,
+		host:                     host,
+		uiHost:                   uiHost,
+		singleIssuer:             singleIssuer,
+		icRepo:                   repo,
+		identitySrv:              idenSrv,
+		mtService:                mtService,
+		qrService:                qrService,
+		identityStateRepository:  identityStateRepository,
+		storage:                  storage,
+		loader:                   ld,
+		publisher:                ps,
+		revocationStatusResolver: revocationStatusResolver,
 	}
 	if ipfsGatewayURL != "" {
 		s.ipfsClient = shell.NewShell(ipfsGatewayURL)
@@ -127,10 +124,15 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 		return nil, err
 	}
 
-	schema, err := schemaPkg.LoadSchema(ctx, c.loaderFactory(req.Schema))
+	schema, err := schemaPkg.LoadSchema(ctx, c.loader, req.Schema)
 	if err != nil {
 		log.Error(ctx, "loading schema", "err", err, "schema", req.Schema)
 		return nil, ErrLoadingSchema
+	}
+
+	if schema.Metadata == nil {
+		log.Error(ctx, "schema metadata is nil", "err", ErrProcessSchema)
+		return nil, ErrProcessSchema
 	}
 
 	jsonLdContext, ok := schema.Metadata.Uris["jsonLdContext"].(string)
@@ -144,20 +146,18 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 		return nil, err
 	}
 
-	vc, err := c.createVC(req, vcID, jsonLdContext, nonce) // FIXME here id link
+	vc, err := c.createVC(ctx, req, vcID, jsonLdContext, nonce)
 	if err != nil {
 		log.Error(ctx, "creating verifiable credential", "err", err)
 		return nil, err
 	}
 
-	jsonLdContext = strings.ReplaceAll(jsonLdContext, "https://ipfs.io/", "https://ipfs.rarimo.com/")
-
-	jsonLDCtxBytes, _, err := c.loaderFactory(jsonLdContext).Load(ctx)
+	jsonLD, err := jsonschema.Load(ctx, jsonLdContext, c.loader)
 	if err != nil {
 		log.Error(ctx, "loading jsonLdContext", "err", err, "url", jsonLdContext)
 		return nil, err
 	}
-	credentialType, err := merklize.TypeIDFromContext(jsonLDCtxBytes, req.Type)
+	credentialType, err := merklize.TypeIDFromContext(jsonLD.BytesNoErr(), req.Type)
 	if err != nil {
 		log.Error(ctx, "getting credential type", "err", err)
 		return nil, err
@@ -170,10 +170,10 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 		Updatable:             false,
 	}
 	if c.ipfsClient != nil {
-		opts.MerklizerOpts = []merklize.MerklizeOption{merklize.WithIPFSClient(c.ipfsClient)}
+		opts.MerklizerOpts = []merklize.MerklizeOption{merklize.WithDocumentLoader(c.loader)}
 	}
 
-	coreClaim, err := schemaPkg.Process(ctx, c.loaderFactory(req.Schema), credentialType, vc, opts)
+	coreClaim, err := schemaPkg.Process(ctx, c.loader, req.Schema, vc, opts)
 	if err != nil {
 		log.Error(ctx, "credential subject attributes don't match the provided schema", "err", err)
 		if errors.Is(err, schemaPkg.ErrParseClaim) {
@@ -201,6 +201,7 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 	claim.Identifier = &issuerDIDString
 	claim.Issuer = issuerDIDString
 	claim.ID = vcID
+	claim.SchemaTypeDescription = &req.Type
 
 	if req.SignatureProof {
 		authClaim, err := c.GetAuthClaim(ctx, req.DID)
@@ -215,7 +216,12 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 			return nil, err
 		}
 
-		proof.IssuerData.CredentialStatus = c.getRevocationSource(issuerDIDString, uint64(authClaim.RevNonce), req.SingleIssuer)
+		authCs, err := authClaim.GetCredentialStatus()
+		if err != nil {
+			log.Error(ctx, "cannot get the auth claim credential status", "err", err)
+		}
+
+		proof.IssuerData.CredentialStatus = authCs
 
 		jsonSignatureProof, err := json.Marshal(proof)
 		if err != nil {
@@ -247,11 +253,11 @@ func (c *claim) CreateCredential(ctx context.Context, req *ports.CreateClaimRequ
 	return claim, nil
 }
 
-func (c *claim) Revoke(ctx context.Context, id core.DID, nonce uint64, description string) error {
+func (c *claim) Revoke(ctx context.Context, id w3c.DID, nonce uint64, description string) error {
 	return c.revoke(ctx, &id, nonce, description, c.storage.Pgx)
 }
 
-func (c *claim) RevokeAllFromConnection(ctx context.Context, connID uuid.UUID, issuerID core.DID) error {
+func (c *claim) RevokeAllFromConnection(ctx context.Context, connID uuid.UUID, issuerID w3c.DID) error {
 	credentials, err := c.icRepo.GetNonRevokedByConnectionAndIssuerID(ctx, c.storage.Pgx, connID, issuerID)
 	if err != nil {
 		return err
@@ -281,7 +287,7 @@ func (c *claim) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (c *claim) GetByID(ctx context.Context, issID *core.DID, id uuid.UUID) (*domain.Claim, error) {
+func (c *claim) GetByID(ctx context.Context, issID *w3c.DID, id uuid.UUID) (*domain.Claim, error) {
 	claim, err := c.icRepo.GetByIdAndIssuer(ctx, c.storage.Pgx, issID, id)
 	if err != nil {
 		if errors.Is(err, repositories.ErrClaimDoesNotExist) {
@@ -305,6 +311,55 @@ func (c *claim) GetBySingleID(ctx context.Context, id uuid.UUID) (*domain.Claim,
 	return claim, nil
 }
 
+// GetCredentialQrCode creates a credential QR code for the given credential and returns the QR Link to be used
+func (c *claim) GetCredentialQrCode(ctx context.Context, issID *w3c.DID, id uuid.UUID, hostURL string) (string, string, error) {
+	getCredentialType := func(claim domain.Claim) string {
+		if claim.SchemaTypeDescription != nil {
+			return *claim.SchemaTypeDescription
+		}
+		credentialType := claim.SchemaType
+		const schemaParts = 2
+		parse := strings.Split(credentialType, "#")
+		if len(parse) != schemaParts {
+			return credentialType
+		}
+		return parse[1]
+	}
+
+	claim, err := c.GetByID(ctx, issID, id)
+	if err != nil {
+		return "", "", err
+	}
+	credID := uuid.New()
+	qrCode := protocol.CredentialsOfferMessage{
+		Body: protocol.CredentialsOfferMessageBody{
+			Credentials: []protocol.CredentialOffer{
+				{
+					Description: getCredentialType(*claim),
+					ID:          claim.ID.String(),
+				},
+			},
+			URL: fmt.Sprintf("%s/v1/agent", strings.TrimSuffix(hostURL, "/")),
+		},
+		From:     claim.Issuer,
+		ID:       credID.String(),
+		ThreadID: credID.String(),
+		To:       claim.OtherIdentifier,
+		Typ:      packers.MediaTypePlainMessage,
+		Type:     protocol.CredentialOfferMessageType,
+	}
+
+	raw, err := json.Marshal(qrCode)
+	if err != nil {
+		return "", "", err
+	}
+	qrID, err := c.qrService.Store(ctx, raw, DefaultQRBodyTTL)
+	if err != nil {
+		return "", "", err
+	}
+	return c.qrService.ToURL(hostURL, qrID), getCredentialType(*claim), nil
+}
+
 func (c *claim) Agent(ctx context.Context, req *ports.AgentRequest) (*domain.Agent, error) {
 	exists, err := c.identitySrv.Exists(ctx, *req.IssuerDID)
 	if err != nil {
@@ -320,7 +375,7 @@ func (c *claim) Agent(ctx context.Context, req *ports.AgentRequest) (*domain.Age
 	return c.getAgentCredential(ctx, req) // at this point the type is already validated
 }
 
-func (c *claim) GetAuthClaim(ctx context.Context, did *core.DID) (*domain.Claim, error) {
+func (c *claim) GetAuthClaim(ctx context.Context, did *w3c.DID) (*domain.Claim, error) {
 	authHash, err := core.AuthSchemaHash.MarshalText()
 	if err != nil {
 		return nil, err
@@ -328,7 +383,7 @@ func (c *claim) GetAuthClaim(ctx context.Context, did *core.DID) (*domain.Claim,
 	return c.icRepo.FindOneClaimBySchemaHash(ctx, c.storage.Pgx, did, string(authHash))
 }
 
-func (c *claim) GetAll(ctx context.Context, did core.DID, filter *ports.ClaimsFilter) ([]*domain.Claim, error) {
+func (c *claim) GetAll(ctx context.Context, did w3c.DID, filter *ports.ClaimsFilter) ([]*domain.Claim, error) {
 	claims, err := c.icRepo.GetAllByIssuerID(ctx, c.storage.Pgx, did, filter)
 	if err != nil {
 		if errors.Is(err, repositories.ErrClaimDoesNotExist) {
@@ -340,7 +395,7 @@ func (c *claim) GetAll(ctx context.Context, did core.DID, filter *ports.ClaimsFi
 	return claims, nil
 }
 
-func (c *claim) GetRevocationStatus(ctx context.Context, issuerDID core.DID, nonce uint64, stateHash string) (*verifiable.RevocationStatus, error) {
+func (c *claim) GetRevocationStatus(ctx context.Context, issuerDID w3c.DID, nonce uint64, stateHash string) (*verifiable.RevocationStatus, error) {
 	rID := new(big.Int).SetUint64(nonce)
 	revocationStatus := &verifiable.RevocationStatus{}
 
@@ -393,7 +448,7 @@ func (c *claim) GetRevocationStatus(ctx context.Context, issuerDID core.DID, non
 	return revocationStatus, nil
 }
 
-func (c *claim) GetAuthClaimForPublishing(ctx context.Context, did *core.DID, state string) (*domain.Claim, error) {
+func (c *claim) GetAuthClaimForPublishing(ctx context.Context, did *w3c.DID, state string) (*domain.Claim, error) {
 	authHash, err := core.AuthSchemaHash.MarshalText()
 	if err != nil {
 		return nil, err
@@ -412,7 +467,7 @@ func (c *claim) GetAuthClaimForPublishing(ctx context.Context, did *core.DID, st
 
 // UpdateClaimsMTPAndState update identity status and claim MTP
 func (c *claim) UpdateClaimsMTPAndState(ctx context.Context, currentState *domain.IdentityState) error {
-	did, err := core.ParseDID(currentState.Identifier)
+	did, err := w3c.ParseDID(currentState.Identifier)
 	if err != nil {
 		return err
 	}
@@ -507,7 +562,7 @@ func (c *claim) UpdateClaimsMTPAndState(ctx context.Context, currentState *domai
 	return nil
 }
 
-func (c *claim) GetByStateIDWithMTPProof(ctx context.Context, did *core.DID, state string) ([]*domain.Claim, error) {
+func (c *claim) GetByStateIDWithMTPProof(ctx context.Context, did *w3c.DID, state string) ([]*domain.Claim, error) {
 	return c.icRepo.GetByStateIDWithMTPProof(ctx, c.storage.Pgx, did, state)
 }
 
@@ -537,7 +592,7 @@ func (c *claim) GetMTIDByKey(ctx context.Context, key string) (int64, error) {
 	return iMT, nil
 }
 
-func (c *claim) revoke(ctx context.Context, did *core.DID, nonce uint64, description string, pgx db.Querier) error {
+func (c *claim) revoke(ctx context.Context, did *w3c.DID, nonce uint64, description string, pgx db.Querier) error {
 	rID := new(big.Int).SetUint64(nonce)
 	revocation := domain.Revocation{
 		Identifier:  did.String(),
@@ -602,7 +657,7 @@ func (c *claim) getAgentCredential(ctx context.Context, basicMessage *ports.Agen
 		return nil, err
 	}
 
-	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim, c.cfg.UIHost)
+	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim, c.uiHost)
 	if err != nil {
 		log.Error(ctx, "creating W3 credential", "err", err)
 		return nil, fmt.Errorf("failed to convert claim to  w3cCredential: %w", err)
@@ -619,8 +674,8 @@ func (c *claim) getAgentCredential(ctx context.Context, basicMessage *ports.Agen
 	}, err
 }
 
-func (c *claim) createVC(claimReq *ports.CreateClaimRequest, vcID uuid.UUID, jsonLdContext string, nonce uint64) (verifiable.W3CCredential, error) {
-	vCredential, err := c.newVerifiableCredential(claimReq, vcID, jsonLdContext, nonce) // create vc credential
+func (c *claim) createVC(ctx context.Context, claimReq *ports.CreateClaimRequest, vcID uuid.UUID, jsonLdContext string, nonce uint64) (verifiable.W3CCredential, error) {
+	vCredential, err := c.newVerifiableCredential(ctx, claimReq, vcID, jsonLdContext, nonce) // create vc credential
 	if err != nil {
 		return verifiable.W3CCredential{}, err
 	}
@@ -635,14 +690,14 @@ func (c *claim) guardCreateClaimRequest(req *ports.CreateClaimRequest) error {
 	return nil
 }
 
-func (c *claim) newVerifiableCredential(claimReq *ports.CreateClaimRequest, vcID uuid.UUID, jsonLdContext string, nonce uint64) (verifiable.W3CCredential, error) {
+func (c *claim) newVerifiableCredential(ctx context.Context, claimReq *ports.CreateClaimRequest, vcID uuid.UUID, jsonLdContext string, nonce uint64) (verifiable.W3CCredential, error) {
 	credentialCtx := []string{common.JSONLDSchemaW3CCredential2018, verifiable.JSONLDSchemaIden3Credential, jsonLdContext}
 	credentialType := []string{verifiable.TypeW3CVerifiableCredential, claimReq.Type}
 
 	credentialSubject := claimReq.CredentialSubject
 
 	if idSubject, ok := credentialSubject["id"].(string); ok {
-		did, err := core.ParseDID(idSubject)
+		did, err := w3c.ParseDID(idSubject)
 		if err != nil {
 			return verifiable.W3CCredential{}, err
 		}
@@ -651,7 +706,16 @@ func (c *claim) newVerifiableCredential(claimReq *ports.CreateClaimRequest, vcID
 
 	credentialSubject["type"] = claimReq.Type
 
-	cs := c.getRevocationSource(claimReq.DID.String(), nonce, claimReq.SingleIssuer)
+	latestIssuerState, err := c.identitySrv.GetLatestStateByID(ctx, *claimReq.DID)
+	if err != nil {
+		log.Error(ctx, "getting latest issuer state", "err", err)
+		return verifiable.W3CCredential{}, err
+	}
+	cs, err := c.revocationStatusResolver.GetCredentialRevocationStatus(ctx, *claimReq.DID, nonce, *latestIssuerState.State, claimReq.CredentialStatusType)
+	if err != nil {
+		log.Error(ctx, "getting credential status", "err", err)
+		return verifiable.W3CCredential{}, err
+	}
 
 	issuanceDate := time.Now()
 	return verifiable.W3CCredential{
@@ -670,48 +734,50 @@ func (c *claim) newVerifiableCredential(claimReq *ports.CreateClaimRequest, vcID
 	}, nil
 }
 
-func (c *claim) getRevocationSource(issuerDID string, nonce uint64, singleIssuer bool) interface{} {
-	if c.cfg.RHSEnabled {
-		return &verifiable.RHSCredentialStatus{
-			ID:              fmt.Sprintf("%s/node", strings.TrimSuffix(c.cfg.RHSUrl, "/")),
-			Type:            verifiable.Iden3ReverseSparseMerkleTreeProof,
-			RevocationNonce: nonce,
-			StatusIssuer: &verifiable.CredentialStatus{
-				ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
-				Type:            verifiable.SparseMerkleTreeProof,
-				RevocationNonce: nonce,
-			},
-		}
-	}
-	return &verifiable.CredentialStatus{
-		ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
-		Type:            verifiable.SparseMerkleTreeProof,
-		RevocationNonce: nonce,
-	}
-}
+// TODO remove
+//func (c *claim) getRevocationSource(issuerDID string, nonce uint64, singleIssuer bool) interface{} {
+//	if c.cfg.RHSEnabled {
+//		return &verifiable.RHSCredentialStatus{
+//			ID:              fmt.Sprintf("%s/node", strings.TrimSuffix(c.cfg.RHSUrl, "/")),
+//			Type:            verifiable.Iden3ReverseSparseMerkleTreeProof,
+//			RevocationNonce: nonce,
+//			StatusIssuer: &verifiable.CredentialStatus{
+//				ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
+//				Type:            verifiable.SparseMerkleTreeProof,
+//				RevocationNonce: nonce,
+//			},
+//		}
+//	}
+//	return &verifiable.CredentialStatus{
+//		ID:              buildRevocationURL(c.cfg, issuerDID, nonce, singleIssuer),
+//		Type:            verifiable.SparseMerkleTreeProof,
+//		RevocationNonce: nonce,
+//	}
+//}
 
-func (c *claim) buildCredentialID(issuerDID core.DID, credID uuid.UUID, singleIssuer bool) string {
+func (c *claim) buildCredentialID(issuerDID w3c.DID, credID uuid.UUID, singleIssuer bool) string {
+	// TODO: review how to build the credential ID
 	if singleIssuer {
-		return fmt.Sprintf("%s/v1/credentials/%s", strings.TrimSuffix(c.cfg.UIHost, "/"), credID.String()) // FIXME UI host
+		return fmt.Sprintf("%s/v1/credentials/%s", strings.TrimSuffix(c.uiHost, "/"), credID.String())
 	}
-
-	return fmt.Sprintf("%s/v1/%s/claims/%s", strings.TrimSuffix(c.cfg.Host, "/"), issuerDID.String(), credID.String())
+	return fmt.Sprintf("%s/v1/%s/claims/%s", strings.TrimSuffix(c.host, "/"), issuerDID.String(), credID.String())
 }
 
-func buildRevocationURL(cfg ClaimCfg, issuerDID string, nonce uint64, singleIssuer bool) string {
-	if singleIssuer {
-		return fmt.Sprintf("%s/v1/credentials/revocation/status/%d",
-			cfg.UIHost, nonce)
-	}
-
-	return fmt.Sprintf("%s/v1/%s/claims/revocation/status/%d",
-		cfg.Host, url.QueryEscape(issuerDID), nonce)
-}
+// TODO remove
+//func buildRevocationURL(cfg ClaimCfg, issuerDID string, nonce uint64, singleIssuer bool) string {
+//	if singleIssuer {
+//		return fmt.Sprintf("%s/v1/credentials/revocation/status/%d",
+//			cfg.UIHost, nonce)
+//	}
+//
+//	return fmt.Sprintf("%s/v1/%s/claims/revocation/status/%d",
+//		cfg.Host, url.QueryEscape(issuerDID), nonce)
+//}
 
 func (c *claim) buildMTProofURL(credID uuid.UUID) string {
-	if c.cfg.SingleIssuer {
-		return fmt.Sprintf("%s/v1/claims/%s/mtp", c.cfg.UIHost, credID.String())
+	if c.singleIssuer {
+		return fmt.Sprintf("%s/v1/claims/%s/mtp", c.uiHost, credID.String())
 	}
 
-	return fmt.Sprintf("%s/v1/claims/%s/mtp", c.cfg.Host, credID.String())
+	return fmt.Sprintf("%s/v1/claims/%s/mtp", c.host, credID.String())
 }

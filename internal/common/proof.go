@@ -3,11 +3,11 @@ package common
 import (
 	"encoding/hex"
 	"encoding/json"
+	core "github.com/iden3/go-iden3-core/v2"
 
-	core "github.com/iden3/go-iden3-core"
 	"github.com/iden3/go-iden3-crypto/babyjub"
 	mt "github.com/iden3/go-merkletree-sql/v2"
-	"github.com/iden3/go-schema-processor/verifiable"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 )
 

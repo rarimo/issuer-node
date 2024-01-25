@@ -3,7 +3,7 @@ package domain
 import (
 	"math/big"
 
-	"github.com/iden3/go-schema-processor/verifiable"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
 
 	"github.com/rarimo/issuer-node/internal/common"
 )
