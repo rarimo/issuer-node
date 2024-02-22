@@ -27,6 +27,8 @@ type DIDCreationOptions struct {
 type IdentityService interface {
 	GetByDID(ctx context.Context, identifier w3c.DID) (*domain.Identity, error)
 	Create(ctx context.Context, hostURL string, didOptions *DIDCreationOptions) (*domain.Identity, error)
+	Import(ctx context.Context, hostURL, privKey string, didOptions *DIDCreationOptions) (*domain.Identity, error)
+	GetPrivateKey(ctx context.Context, identity w3c.DID) (string, error)
 	SignClaimEntry(ctx context.Context, authClaim *domain.Claim, claimEntry *core.Claim) (*common.BJJSignatureProof2021, error)
 	Get(ctx context.Context) (identities []string, err error)
 	UpdateState(ctx context.Context, did w3c.DID) (*domain.IdentityState, error)

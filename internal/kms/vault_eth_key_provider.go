@@ -190,6 +190,11 @@ func (v *vaultETHKeyProvider) New(identity *w3c.DID) (KeyID, error) {
 	return keyID, saveKeyMaterial(v.vaultCli, keyID.ID, keyMaterial)
 }
 
+func (v *vaultETHKeyProvider) Import(privKey string) (KeyID, error) {
+	// TODO
+	return KeyID{}, nil
+}
+
 // NewVaultEthProvider creates new provider for Ethereum keys stored in vault
 func NewVaultEthProvider(valutCli *api.Client, keyType KeyType) KeyProvider {
 	reIdenKeyPathHex := regexp.MustCompile("^(?i).*/" +
@@ -209,4 +214,17 @@ func DecodeETHPubKey(key []byte) (*ecdsa.PublicKey, error) {
 func decodeETHPrivateKey(key []byte) (*ecdsa.PrivateKey, error) {
 	privKey, err := crypto.ToECDSA(key)
 	return privKey, errors.WithStack(err)
+}
+
+func (v *vaultETHKeyProvider) PrivateKey(keyID KeyID) (string, error) {
+	if keyID.Type != v.keyType {
+		return "", errors.New("incorrect key type")
+	}
+
+	privKeyBytes, err := v.privateKey(keyID)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+
+	return hex.EncodeToString(privKeyBytes), nil
 }

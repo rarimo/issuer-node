@@ -125,6 +125,62 @@ paths:
         '500':
           $ref: '#/components/responses/500'
 
+  /v1/identities/import:
+    post:
+      summary: Import Identity
+      operationId: ImportIdentity
+      description: Endpoint to import an identity
+      tags:
+        - Identity
+      security:
+        - basicAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportIdentityRequest'
+      responses:
+        '201':
+          description: Identity created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateIdentityResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '500':
+          $ref: '#/components/responses/500-CreateIdentity'
+
+  /v1/identities/{identifier}/private-key:
+    get:
+      summary: Identity Private Key
+      operationId: GetIdentityPrivateKey
+      description: Endpoint to get an identity private key
+      tags:
+        - Identity
+      security:
+        - basicAuth: [ ]
+      parameters:
+        - $ref: '#/components/parameters/pathIdentifier'
+      responses:
+        '200':
+          description: Identity top up successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetIdentityPrivateKeyResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '404':
+          $ref: '#/components/responses/404'
+        '500':
+          $ref: '#/components/responses/500'
+
   /v1/identities/{identifier}/details:
     get:
       summary: Identity Detail
@@ -614,6 +670,40 @@ components:
               example: "BJJ"
               enum: [BJJ, ETH]
 
+    ImportIdentityRequest:
+      type: object
+      required:
+        - privateKey
+        - didMetadata
+      properties:
+        privateKey:
+          type: string
+        didMetadata:
+          type: object
+          required:
+            - method
+            - blockchain
+            - network
+            - type
+          properties:
+            method:
+              type: string
+              x-omitempty: false
+              example: "polygonid"
+            blockchain:
+              type: string
+              x-omitempty: false
+              example: "polygon"
+            network:
+              type: string
+              x-omitempty: false
+              example: "mumbai"
+            type:
+              type: string
+              x-omitempty: false
+              example: "BJJ"
+              enum: [BJJ, ETH]
+
     CreateIdentityResponse:
       type: object
       required:
@@ -641,6 +731,17 @@ components:
         address:
           type: string
         balance:
+          type: string
+
+    GetIdentityPrivateKeyResponse:
+      type: object
+      required:
+        - identifier
+        - private_key
+      properties:
+        identifier:
+          type: string
+        private_key:
           type: string
 
 

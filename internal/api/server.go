@@ -133,6 +133,77 @@ func (s *Server) CreateIdentity(ctx context.Context, request CreateIdentityReque
 	}, nil
 }
 
+func (s *Server) ImportIdentity(ctx context.Context, request ImportIdentityRequestObject) (ImportIdentityResponseObject, error) {
+	privKey := request.Body.PrivateKey
+	method := request.Body.DidMetadata.Method
+	blockchain := request.Body.DidMetadata.Blockchain
+	network := request.Body.DidMetadata.Network
+	keyType := request.Body.DidMetadata.Type
+
+	if keyType != "BJJ" && keyType != "ETH" {
+		return ImportIdentity400JSONResponse{
+			N400JSONResponse{
+				Message: "Type must be BJJ or ETH",
+			},
+		}, nil
+	}
+
+	identity, err := s.identityService.Import(ctx, s.cfg.ServerUrl, privKey, &ports.DIDCreationOptions{
+		Method:                  core.DIDMethod(method),
+		Network:                 core.NetworkID(network),
+		Blockchain:              core.Blockchain(blockchain),
+		KeyType:                 kms.KeyType(keyType),
+		AuthBJJCredentialStatus: verifiable.CredentialStatusType(s.cfg.CredentialStatus.CredentialStatusType),
+	})
+	if err != nil {
+		if errors.Is(err, services.ErrWrongDIDMetada) {
+			return ImportIdentity400JSONResponse{
+				N400JSONResponse{
+					Message: err.Error(),
+				},
+			}, nil
+		}
+		return nil, err
+	}
+
+	return ImportIdentity201JSONResponse{
+		Identifier: &identity.Identifier,
+		State: &IdentityState{
+			BlockNumber:        identity.State.BlockNumber,
+			BlockTimestamp:     identity.State.BlockTimestamp,
+			ClaimsTreeRoot:     identity.State.ClaimsTreeRoot,
+			CreatedAt:          TimeUTC(identity.State.CreatedAt),
+			ModifiedAt:         TimeUTC(identity.State.ModifiedAt),
+			PreviousState:      identity.State.PreviousState,
+			RevocationTreeRoot: identity.State.RevocationTreeRoot,
+			RootOfRoots:        identity.State.RootOfRoots,
+			State:              identity.State.State,
+			Status:             string(identity.State.Status),
+			TxID:               identity.State.TxID,
+		},
+		Address: identity.Address,
+	}, nil
+}
+
+func (s *Server) GetIdentityPrivateKey(ctx context.Context, request GetIdentityPrivateKeyRequestObject) (GetIdentityPrivateKeyResponseObject, error) {
+	did, err := w3c.ParseDID(request.Identifier)
+	if err != nil {
+		return GetIdentityPrivateKey400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
+	}
+
+	key, err := s.identityService.GetPrivateKey(ctx, *did)
+	if err != nil {
+		return GetIdentityPrivateKey404JSONResponse{N404JSONResponse{
+			Message: "the key does not exist",
+		}}, nil
+	}
+
+	return GetIdentityPrivateKey200JSONResponse{
+		Identifier: request.Identifier,
+		PrivateKey: key,
+	}, nil
+}
+
 // CreateClaim is claim creation controller
 func (s *Server) CreateClaim(ctx context.Context, request CreateClaimRequestObject) (CreateClaimResponseObject, error) {
 	did, err := w3c.ParseDID(request.Identifier)

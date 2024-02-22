@@ -16,6 +16,7 @@ const kvStoragePath = "secret"
 const (
 	jsonKeyType = "key_type"
 	jsonKeyData = "key_data"
+	jsonPrivKey = "private_key"
 )
 
 func saveKeyMaterial(vaultCli *api.Client, path string, jsonObj map[string]string) error {
