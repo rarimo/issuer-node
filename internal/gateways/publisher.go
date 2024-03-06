@@ -123,7 +123,7 @@ func (p *publisher) publishState(ctx context.Context, identifier *w3c.DID) (*dom
 	}
 
 	if !exists {
-		log.Info(ctx, "no unprocessed states for the given issuer id")
+		log.Info(ctx, "no unprocessed states for the given issuer id", "did", identifier.String())
 		return nil, ErrNoStatesToProcess
 	}
 
@@ -296,7 +296,7 @@ func (p *publisher) publishProof(ctx context.Context, identifier *w3c.DID, newSt
 		return nil, err
 	}
 
-	log.Info(ctx, "Success!", "TxID", txID)
+	log.Info(ctx, "Success!", "TxID", txID, "did", identifier.String())
 
 	// 8. Update state with txID value (block values are still default because tx is not confirmed)
 
