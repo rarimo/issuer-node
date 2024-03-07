@@ -51,6 +51,7 @@ type Configuration struct {
 	GasPriceZero                 bool             `mapstructure:"IsGasPriceZero"`
 	StatesTransitionFrequency    time.Duration    `mapstructure:"StatesTransitionFrequency"`
 	SingleIssuer                 bool             `mapstructure:"SingleIssuer"`
+	IssuersToPublishState        []string         `mapstructure:"IssuersToPublishState"`
 }
 
 // Database has the database configuration
@@ -460,6 +461,7 @@ func bindEnv() {
 	_ = viper.BindEnv("IsGasPriceZero", "ISSUER_IS_GAS_PRICE_ZERO")
 	_ = viper.BindEnv("StatesTransitionFrequency", "ISSUER_STATES_TRANSITION_FREQUENCY")
 	_ = viper.BindEnv("SingleIssuer", "ISSUER_SINGLE")
+	_ = viper.BindEnv("IssuersToPublishState", "ISSUERS_TO_PUBLISH_STATE")
 
 	viper.AutomaticEnv()
 }

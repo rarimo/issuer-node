@@ -193,18 +193,26 @@ func main() {
 	if cfg.SingleIssuer {
 		dids = append(dids, &cfg.APIUI.IssuerDID)
 	} else {
-		identities, err := identityService.Get(ctx)
-		if err != nil {
-			log.Error(ctx, "error getting identities from the database", "err", err)
-			panic("error getting identities from the database")
-		}
-		for _, identity := range identities {
-			did, err := w3c.ParseDID(identity)
+		for _, identifier := range cfg.IssuersToPublishState {
+			did, err := w3c.ParseDID(identifier)
 			if err != nil {
-				log.Error(ctx, "error parsing DID", "err", err, "did", identity)
+				log.Error(ctx, "error parsing DID", "err", err, "did", identifier)
+				continue
+			}
+
+			identity, err := identityService.GetByDID(ctx, *did)
+			if err != nil {
+				log.Error(ctx, "error getting identity by DID", "err", err, "did", identifier)
+				continue
+			}
+			if identity == nil {
+				log.Error(ctx, "identity not found", "did", identifier)
 				continue
 			}
 			dids = append(dids, did)
+		}
+		if len(dids) == 0 {
+			dids = append(dids, &cfg.APIUI.IssuerDID)
 		}
 	}
 
