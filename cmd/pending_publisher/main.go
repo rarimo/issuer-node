@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	vault "github.com/hashicorp/vault/api"
+	"github.com/iden3/go-iden3-core/v2/w3c"
 
 	"github.com/rarimo/issuer-node/internal/buildinfo"
 	"github.com/rarimo/issuer-node/internal/config"
@@ -188,9 +189,36 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
+	dids := make([]*w3c.DID, 0)
+	if cfg.SingleIssuer {
+		dids = append(dids, &cfg.APIUI.IssuerDID)
+	} else {
+		for _, identifier := range cfg.IssuersToPublishState {
+			did, err := w3c.ParseDID(identifier)
+			if err != nil {
+				log.Error(ctx, "error parsing DID", "err", err, "did", identifier)
+				continue
+			}
+
+			identity, err := identityService.GetByDID(ctx, *did)
+			if err != nil {
+				log.Error(ctx, "error getting identity by DID", "err", err, "did", identifier)
+				continue
+			}
+			if identity == nil {
+				log.Error(ctx, "identity not found", "did", identifier)
+				continue
+			}
+			dids = append(dids, did)
+		}
+		if len(dids) == 0 {
+			dids = append(dids, &cfg.APIUI.IssuerDID)
+		}
+	}
+
 	wg := new(sync.WaitGroup)
-	run(ctx, wg, cfg, publisher, onChainPublisherRunner)
-	run(ctx, wg, cfg, publisher, statusCheckerRunner)
+	run(ctx, wg, cfg, publisher, dids, onChainPublisherRunner)
+	run(ctx, wg, cfg, publisher, dids, statusCheckerRunner)
 
 	waitGroupChannel := make(chan struct{})
 	go func() {
@@ -230,69 +258,72 @@ func run(
 	wg *sync.WaitGroup,
 	cfg *config.Configuration,
 	publisher ports.Publisher,
-	runner func(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher),
+	dids []*w3c.DID,
+	runner func(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher, dids []*w3c.DID),
 ) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
-		runner(ctx, cfg, publisher)
+		runner(ctx, cfg, publisher, dids)
 	}()
 }
 
-func onChainPublisherRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher) {
+func onChainPublisherRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher, dids []*w3c.DID) {
 	ticker := time.NewTicker(cfg.StatesTransitionFrequency)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			// If the previous state publishing is failed, we try to re-publish it
-			republishedState, err := publisher.RetryPublishState(ctx, &cfg.APIUI.IssuerDID) // TODO single
-			if err != nil && !errors.Is(err, gateways.ErrNoFailedStatesToProcess) {
-				if errors.Is(err, gateways.ErrStateIsBeingProcessed) {
+			for _, did := range dids {
+				// If the previous state publishing is failed, we try to re-publish it
+				republishedState, err := publisher.RetryPublishState(ctx, did)
+				if err != nil && !errors.Is(err, gateways.ErrNoFailedStatesToProcess) {
+					if errors.Is(err, gateways.ErrStateIsBeingProcessed) {
+						continue
+					}
+
+					log.Error(ctx, "error re-publishing state", "err", err)
+					continue
+				}
+				if republishedState != nil {
+					ticker.Reset(cfg.StatesTransitionFrequency)
+					log.Info(ctx, "re-published state",
+						"tx", republishedState.TxID,
+						"state", republishedState.State,
+					)
 					continue
 				}
 
-				log.Error(ctx, "error re-publishing state", "err", err)
-				continue
-			}
-			if republishedState != nil {
-				ticker.Reset(cfg.StatesTransitionFrequency)
-				log.Info(ctx, "re-published state",
-					"tx", republishedState.TxID,
-					"state", republishedState.State,
+				publishedState, err := publisher.PublishState(ctx, did)
+				if err != nil {
+					if errors.Is(err, gateways.ErrStateIsBeingProcessed) ||
+						errors.Is(err, gateways.ErrNoStatesToProcess) {
+						continue
+					}
+
+					ticker.Reset(cfg.StatesTransitionFrequency)
+					log.Error(ctx, "error publishing state", "err", err)
+					continue
+				}
+				if publishedState == nil {
+					log.Error(ctx, "published state is nil")
+					continue
+				}
+
+				log.Info(ctx, "published state",
+					"tx", publishedState.TxID,
+					"state", publishedState.State,
 				)
-				continue
 			}
-
-			publishedState, err := publisher.PublishState(ctx, &cfg.APIUI.IssuerDID) // TODO single
-			if err != nil {
-				if errors.Is(err, gateways.ErrStateIsBeingProcessed) ||
-					errors.Is(err, gateways.ErrNoStatesToProcess) {
-					continue
-				}
-
-				ticker.Reset(cfg.StatesTransitionFrequency)
-				log.Error(ctx, "error publishing state", "err", err)
-				continue
-			}
-			if publishedState == nil {
-				log.Error(ctx, "published state is nil")
-				continue
-			}
-
-			log.Info(ctx, "published state",
-				"tx", publishedState.TxID,
-				"state", publishedState.State,
-			)
 		case <-ctx.Done():
 			log.Info(ctx, "finishing on chain publishing job")
 		}
 	}
 }
 
-func statusCheckerRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher) {
+func statusCheckerRunner(ctx context.Context, cfg *config.Configuration, publisher ports.Publisher, _ []*w3c.DID) {
 	ticker := time.NewTicker(cfg.OnChainCheckStatusFrequency)
 	defer ticker.Stop()
 
