@@ -99,6 +99,7 @@ func (pb *PublisherEthGateway) PublishState(ctx context.Context, identifier *w3c
 			log.Error(ctx, "failed to create tx opts", "err", err)
 			return nil, err
 		}
+		log.Info(ctx, "transfer state transaction", "from", opts.From.String())
 
 		tx, err = pb.contractBinding.TransitStateGeneric(opts, id.BigInt(), latestState.BigInt(), newState.BigInt(), isOldStateGenesis, big.NewInt(1), []byte{})
 		if err != nil {
