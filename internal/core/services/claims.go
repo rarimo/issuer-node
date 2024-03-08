@@ -657,7 +657,12 @@ func (c *claim) getAgentCredential(ctx context.Context, basicMessage *ports.Agen
 		return nil, err
 	}
 
-	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim, c.uiHost)
+	host := c.host
+	if c.singleIssuer {
+		host = c.uiHost
+	}
+
+	vc, err := schemaPkg.FromClaimModelToW3CCredential(*claim, host) // FIXME тут проблема скорее всего в хардкоде ui.host
 	if err != nil {
 		log.Error(ctx, "creating W3 credential", "err", err)
 		return nil, fmt.Errorf("failed to convert claim to  w3cCredential: %w", err)
@@ -756,14 +761,13 @@ func (c *claim) newVerifiableCredential(ctx context.Context, claimReq *ports.Cre
 //}
 
 func (c *claim) buildCredentialID(issuerDID w3c.DID, credID uuid.UUID, singleIssuer bool) string {
-	// TODO: review how to build the credential ID
 	if singleIssuer {
 		return fmt.Sprintf("%s/v1/credentials/%s", strings.TrimSuffix(c.uiHost, "/"), credID.String())
 	}
 	return fmt.Sprintf("%s/v1/%s/claims/%s", strings.TrimSuffix(c.host, "/"), issuerDID.String(), credID.String())
 }
 
-// TODO remove
+// TODO
 //func buildRevocationURL(cfg ClaimCfg, issuerDID string, nonce uint64, singleIssuer bool) string {
 //	if singleIssuer {
 //		return fmt.Sprintf("%s/v1/credentials/revocation/status/%d",
