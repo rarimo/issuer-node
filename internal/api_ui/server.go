@@ -337,23 +337,23 @@ func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject
 	return ClaimOffer200JSONResponse(getClaimOfferResponse(claim, s.cfg.APIUI.ServerURL)), nil
 }
 
-func (s *Server) ClaimOfferByID(ctx context.Context, request ClaimOfferByIDRequestObject) (ClaimOfferResponseObject, error) {
+func (s *Server) ClaimOfferByID(ctx context.Context, request ClaimOfferByIDRequestObject) (ClaimOfferByIDResponseObject, error) {
 	claimID, err := uuid.Parse(request.ClaimId)
 	if err != nil {
 		log.Error(ctx, "parsing claim uuid", "err", err, "req", request)
-		return ClaimOffer400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
+		return ClaimOfferByID400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
 	}
 
 	claim, err := s.claimService.GetByID(ctx, &s.cfg.APIUI.IssuerDID, claimID)
 	if err != nil {
 		log.Error(ctx, "loading credential", "err", err, "req", request)
-		return ClaimOffer500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
+		return ClaimOfferByID500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
 	}
 	if claim == nil || claim.IdentityState == nil {
-		return ClaimOffer404JSONResponse{N404JSONResponse{"claim not found"}}, nil
+		return ClaimOfferByID404JSONResponse{N404JSONResponse{"claim not found"}}, nil
 	}
 
-	return ClaimOffer200JSONResponse(getClaimOfferResponse(claim, s.cfg.APIUI.ServerURL)), nil
+	return ClaimOfferByID200JSONResponse(getClaimOfferResponse(claim, s.cfg.APIUI.ServerURL)), nil
 }
 
 func (s *Server) GetClaimMTP(ctx context.Context, request GetClaimMTPRequestObject) (GetClaimMTPResponseObject, error) {
