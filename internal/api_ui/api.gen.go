@@ -335,6 +335,9 @@ type Id = uuid.UUID
 // LinkID defines model for linkID.
 type LinkID = uuid.UUID
 
+// PathClaimIdentifier defines model for pathClaimIdentifier.
+type PathClaimIdentifier = string
+
 // PathClaimType defines model for pathClaimType.
 type PathClaimType = string
 
@@ -578,6 +581,9 @@ type ServerInterface interface {
 	// Revoke Credential
 	// (POST /v1/credentials/revoke/{nonce})
 	RevokeCredential(w http.ResponseWriter, r *http.Request, nonce PathNonce)
+	// Claim Offer By ID
+	// (GET /v1/credentials/{claim-id})
+	ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier)
 	// Delete Credential
 	// (DELETE /v1/credentials/{id})
 	DeleteCredential(w http.ResponseWriter, r *http.Request, id Id)
@@ -782,6 +788,12 @@ func (_ Unimplemented) GetRevocationStatus(w http.ResponseWriter, r *http.Reques
 // Revoke Credential
 // (POST /v1/credentials/revoke/{nonce})
 func (_ Unimplemented) RevokeCredential(w http.ResponseWriter, r *http.Request, nonce PathNonce) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Claim Offer By ID
+// (GET /v1/credentials/{claim-id})
+func (_ Unimplemented) ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1635,6 +1647,32 @@ func (siw *ServerInterfaceWrapper) RevokeCredential(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// ClaimOfferByID operation middleware
+func (siw *ServerInterfaceWrapper) ClaimOfferByID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "claim-id" -------------
+	var claimId PathClaimIdentifier
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "claim-id", runtime.ParamLocationPath, chi.URLParam(r, "claim-id"), &claimId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "claim-id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimOfferByID(w, r, claimId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // DeleteCredential operation middleware
 func (siw *ServerInterfaceWrapper) DeleteCredential(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -2151,6 +2189,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/v1/credentials/revoke/{nonce}", wrapper.RevokeCredential)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/credentials/{claim-id}", wrapper.ClaimOfferByID)
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/v1/credentials/{id}", wrapper.DeleteCredential)
@@ -3146,6 +3187,50 @@ func (response RevokeCredential500JSONResponse) VisitRevokeCredentialResponse(w 
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ClaimOfferByIDRequestObject struct {
+	ClaimId PathClaimIdentifier `json:"claim-id"`
+}
+
+type ClaimOfferByIDResponseObject interface {
+	VisitClaimOfferByIDResponse(w http.ResponseWriter) error
+}
+
+type ClaimOfferByID200JSONResponse ClaimOfferResponse
+
+func (response ClaimOfferByID200JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimOfferByID400JSONResponse struct{ N400JSONResponse }
+
+func (response ClaimOfferByID400JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimOfferByID404JSONResponse struct{ N404JSONResponse }
+
+func (response ClaimOfferByID404JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimOfferByID500JSONResponse struct{ N500JSONResponse }
+
+func (response ClaimOfferByID500JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type DeleteCredentialRequestObject struct {
 	Id Id `json:"id"`
 }
@@ -3699,6 +3784,9 @@ type StrictServerInterface interface {
 	// Revoke Credential
 	// (POST /v1/credentials/revoke/{nonce})
 	RevokeCredential(ctx context.Context, request RevokeCredentialRequestObject) (RevokeCredentialResponseObject, error)
+	// Claim Offer By ID
+	// (GET /v1/credentials/{claim-id})
+	ClaimOfferByID(ctx context.Context, request ClaimOfferByIDRequestObject) (ClaimOfferByIDResponseObject, error)
 	// Delete Credential
 	// (DELETE /v1/credentials/{id})
 	DeleteCredential(ctx context.Context, request DeleteCredentialRequestObject) (DeleteCredentialResponseObject, error)
@@ -4495,6 +4583,32 @@ func (sh *strictHandler) RevokeCredential(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RevokeCredentialResponseObject); ok {
 		if err := validResponse.VisitRevokeCredentialResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ClaimOfferByID operation middleware
+func (sh *strictHandler) ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier) {
+	var request ClaimOfferByIDRequestObject
+
+	request.ClaimId = claimId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimOfferByID(ctx, request.(ClaimOfferByIDRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimOfferByID")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimOfferByIDResponseObject); ok {
+		if err := validResponse.VisitClaimOfferByIDResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
