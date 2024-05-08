@@ -394,6 +394,29 @@ paths:
         '500':
           $ref: '#/components/responses/500'
 
+  /v1/credentials/{claim-id}:
+    get:
+      summary: Claim Offer By ID
+      operationId: ClaimOfferByID
+      description: Endpoint to receive a credential by claim ID.
+      tags:
+        - Credential
+      parameters:
+        - $ref: '#/components/parameters/pathClaimIdentifier'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimOfferResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '404':
+          $ref: '#/components/responses/404'
+        '500':
+          $ref: '#/components/responses/500'
+
   /v1/credentials/{user-id}/{claim-type}/subscribe:
     get:
       summary: Websocket For Getting Claim Status
@@ -1767,6 +1790,14 @@ components:
       in: path
       required: true
       description: Claim type
+      schema:
+        type: string
+
+    pathClaimIdentifier:
+      name: claim-id
+      in: path
+      required: true
+      description: Claim identifier
       schema:
         type: string
 

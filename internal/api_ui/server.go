@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iden3/go-merkletree-sql/v2"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/iden3/go-merkletree-sql/v2"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/iden3/go-iden3-core/v2/w3c"
@@ -329,6 +331,25 @@ func (s *Server) ClaimOffer(ctx context.Context, request ClaimOfferRequestObject
 	}
 
 	if claim.IdentityState == nil {
+		return ClaimOffer404JSONResponse{N404JSONResponse{"claim not found"}}, nil
+	}
+
+	return ClaimOffer200JSONResponse(getClaimOfferResponse(claim, s.cfg.APIUI.ServerURL)), nil
+}
+
+func (s *Server) ClaimOfferByID(ctx context.Context, request ClaimOfferByIDRequestObject) (ClaimOfferResponseObject, error) {
+	claimID, err := uuid.Parse(request.ClaimId)
+	if err != nil {
+		log.Error(ctx, "parsing claim uuid", "err", err, "req", request)
+		return ClaimOffer400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
+	}
+
+	claim, err := s.claimService.GetByID(ctx, &s.cfg.APIUI.IssuerDID, claimID)
+	if err != nil {
+		log.Error(ctx, "loading credential", "err", err, "req", request)
+		return ClaimOffer500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
+	}
+	if claim == nil || claim.IdentityState == nil {
 		return ClaimOffer404JSONResponse{N404JSONResponse{"claim not found"}}, nil
 	}
 
