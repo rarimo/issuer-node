@@ -394,7 +394,7 @@ paths:
         '500':
           $ref: '#/components/responses/500'
 
-  /v1/offer/{claim-id}:
+  /v1/credentials/{claim-id}/offer:
     get:
       summary: Claim Offer By ID
       operationId: ClaimOfferByID

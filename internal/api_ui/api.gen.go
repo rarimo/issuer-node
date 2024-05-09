@@ -581,6 +581,9 @@ type ServerInterface interface {
 	// Revoke Credential
 	// (POST /v1/credentials/revoke/{nonce})
 	RevokeCredential(w http.ResponseWriter, r *http.Request, nonce PathNonce)
+	// Claim Offer By ID
+	// (GET /v1/credentials/{claim-id}/offer)
+	ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier)
 	// Delete Credential
 	// (DELETE /v1/credentials/{id})
 	DeleteCredential(w http.ResponseWriter, r *http.Request, id Id)
@@ -596,9 +599,6 @@ type ServerInterface interface {
 	// Websocket For Getting Claim Status
 	// (GET /v1/credentials/{user-id}/{claim-type}/subscribe)
 	SubscribeToClaimWebsocket(w http.ResponseWriter, r *http.Request, userId PathIdentifier, claimType PathClaimType)
-	// Claim Offer By ID
-	// (GET /v1/offer/{claim-id})
-	ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier)
 	// QrCode body
 	// (GET /v1/qr-store)
 	GetQrFromStore(w http.ResponseWriter, r *http.Request, params GetQrFromStoreParams)
@@ -791,6 +791,12 @@ func (_ Unimplemented) RevokeCredential(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Claim Offer By ID
+// (GET /v1/credentials/{claim-id}/offer)
+func (_ Unimplemented) ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Delete Credential
 // (DELETE /v1/credentials/{id})
 func (_ Unimplemented) DeleteCredential(w http.ResponseWriter, r *http.Request, id Id) {
@@ -818,12 +824,6 @@ func (_ Unimplemented) ClaimOffer(w http.ResponseWriter, r *http.Request, userId
 // Websocket For Getting Claim Status
 // (GET /v1/credentials/{user-id}/{claim-type}/subscribe)
 func (_ Unimplemented) SubscribeToClaimWebsocket(w http.ResponseWriter, r *http.Request, userId PathIdentifier, claimType PathClaimType) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Claim Offer By ID
-// (GET /v1/offer/{claim-id})
-func (_ Unimplemented) ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1647,6 +1647,32 @@ func (siw *ServerInterfaceWrapper) RevokeCredential(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// ClaimOfferByID operation middleware
+func (siw *ServerInterfaceWrapper) ClaimOfferByID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "claim-id" -------------
+	var claimId PathClaimIdentifier
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "claim-id", runtime.ParamLocationPath, chi.URLParam(r, "claim-id"), &claimId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "claim-id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimOfferByID(w, r, claimId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // DeleteCredential operation middleware
 func (siw *ServerInterfaceWrapper) DeleteCredential(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1790,32 +1816,6 @@ func (siw *ServerInterfaceWrapper) SubscribeToClaimWebsocket(w http.ResponseWrit
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SubscribeToClaimWebsocket(w, r, userId, claimType)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r.WithContext(ctx))
-}
-
-// ClaimOfferByID operation middleware
-func (siw *ServerInterfaceWrapper) ClaimOfferByID(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var err error
-
-	// ------------- Path parameter "claim-id" -------------
-	var claimId PathClaimIdentifier
-
-	err = runtime.BindStyledParameterWithLocation("simple", false, "claim-id", runtime.ParamLocationPath, chi.URLParam(r, "claim-id"), &claimId)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "claim-id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ClaimOfferByID(w, r, claimId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2191,6 +2191,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/v1/credentials/revoke/{nonce}", wrapper.RevokeCredential)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/credentials/{claim-id}/offer", wrapper.ClaimOfferByID)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/v1/credentials/{id}", wrapper.DeleteCredential)
 	})
 	r.Group(func(r chi.Router) {
@@ -2204,9 +2207,6 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/credentials/{user-id}/{claim-type}/subscribe", wrapper.SubscribeToClaimWebsocket)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/v1/offer/{claim-id}", wrapper.ClaimOfferByID)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/qr-store", wrapper.GetQrFromStore)
@@ -3187,6 +3187,50 @@ func (response RevokeCredential500JSONResponse) VisitRevokeCredentialResponse(w 
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ClaimOfferByIDRequestObject struct {
+	ClaimId PathClaimIdentifier `json:"claim-id"`
+}
+
+type ClaimOfferByIDResponseObject interface {
+	VisitClaimOfferByIDResponse(w http.ResponseWriter) error
+}
+
+type ClaimOfferByID200JSONResponse ClaimOfferResponse
+
+func (response ClaimOfferByID200JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimOfferByID400JSONResponse struct{ N400JSONResponse }
+
+func (response ClaimOfferByID400JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimOfferByID404JSONResponse struct{ N404JSONResponse }
+
+func (response ClaimOfferByID404JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimOfferByID500JSONResponse struct{ N500JSONResponse }
+
+func (response ClaimOfferByID500JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type DeleteCredentialRequestObject struct {
 	Id Id `json:"id"`
 }
@@ -3375,50 +3419,6 @@ func (response SubscribeToClaimWebsocket200Response) VisitSubscribeToClaimWebsoc
 type SubscribeToClaimWebsocket500JSONResponse struct{ N500JSONResponse }
 
 func (response SubscribeToClaimWebsocket500JSONResponse) VisitSubscribeToClaimWebsocketResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
-type ClaimOfferByIDRequestObject struct {
-	ClaimId PathClaimIdentifier `json:"claim-id"`
-}
-
-type ClaimOfferByIDResponseObject interface {
-	VisitClaimOfferByIDResponse(w http.ResponseWriter) error
-}
-
-type ClaimOfferByID200JSONResponse ClaimOfferResponse
-
-func (response ClaimOfferByID200JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
-type ClaimOfferByID400JSONResponse struct{ N400JSONResponse }
-
-func (response ClaimOfferByID400JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
-type ClaimOfferByID404JSONResponse struct{ N404JSONResponse }
-
-func (response ClaimOfferByID404JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
-type ClaimOfferByID500JSONResponse struct{ N500JSONResponse }
-
-func (response ClaimOfferByID500JSONResponse) VisitClaimOfferByIDResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -3784,6 +3784,9 @@ type StrictServerInterface interface {
 	// Revoke Credential
 	// (POST /v1/credentials/revoke/{nonce})
 	RevokeCredential(ctx context.Context, request RevokeCredentialRequestObject) (RevokeCredentialResponseObject, error)
+	// Claim Offer By ID
+	// (GET /v1/credentials/{claim-id}/offer)
+	ClaimOfferByID(ctx context.Context, request ClaimOfferByIDRequestObject) (ClaimOfferByIDResponseObject, error)
 	// Delete Credential
 	// (DELETE /v1/credentials/{id})
 	DeleteCredential(ctx context.Context, request DeleteCredentialRequestObject) (DeleteCredentialResponseObject, error)
@@ -3799,9 +3802,6 @@ type StrictServerInterface interface {
 	// Websocket For Getting Claim Status
 	// (GET /v1/credentials/{user-id}/{claim-type}/subscribe)
 	SubscribeToClaimWebsocket(ctx context.Context, request SubscribeToClaimWebsocketRequestObject) (SubscribeToClaimWebsocketResponseObject, error)
-	// Claim Offer By ID
-	// (GET /v1/offer/{claim-id})
-	ClaimOfferByID(ctx context.Context, request ClaimOfferByIDRequestObject) (ClaimOfferByIDResponseObject, error)
 	// QrCode body
 	// (GET /v1/qr-store)
 	GetQrFromStore(ctx context.Context, request GetQrFromStoreRequestObject) (GetQrFromStoreResponseObject, error)
@@ -4590,6 +4590,32 @@ func (sh *strictHandler) RevokeCredential(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// ClaimOfferByID operation middleware
+func (sh *strictHandler) ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier) {
+	var request ClaimOfferByIDRequestObject
+
+	request.ClaimId = claimId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimOfferByID(ctx, request.(ClaimOfferByIDRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimOfferByID")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimOfferByIDResponseObject); ok {
+		if err := validResponse.VisitClaimOfferByIDResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DeleteCredential operation middleware
 func (sh *strictHandler) DeleteCredential(w http.ResponseWriter, r *http.Request, id Id) {
 	var request DeleteCredentialRequestObject
@@ -4715,32 +4741,6 @@ func (sh *strictHandler) SubscribeToClaimWebsocket(w http.ResponseWriter, r *htt
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SubscribeToClaimWebsocketResponseObject); ok {
 		if err := validResponse.VisitSubscribeToClaimWebsocketResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ClaimOfferByID operation middleware
-func (sh *strictHandler) ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier) {
-	var request ClaimOfferByIDRequestObject
-
-	request.ClaimId = claimId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ClaimOfferByID(ctx, request.(ClaimOfferByIDRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ClaimOfferByID")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ClaimOfferByIDResponseObject); ok {
-		if err := validResponse.VisitClaimOfferByIDResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
