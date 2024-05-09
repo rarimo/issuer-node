@@ -582,7 +582,7 @@ type ServerInterface interface {
 	// (POST /v1/credentials/revoke/{nonce})
 	RevokeCredential(w http.ResponseWriter, r *http.Request, nonce PathNonce)
 	// Claim Offer By ID
-	// (GET /v1/credentials/{claim-id})
+	// (GET /v1/credentials/{claim-id}/offer)
 	ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier)
 	// Delete Credential
 	// (DELETE /v1/credentials/{id})
@@ -792,7 +792,7 @@ func (_ Unimplemented) RevokeCredential(w http.ResponseWriter, r *http.Request, 
 }
 
 // Claim Offer By ID
-// (GET /v1/credentials/{claim-id})
+// (GET /v1/credentials/{claim-id}/offer)
 func (_ Unimplemented) ClaimOfferByID(w http.ResponseWriter, r *http.Request, claimId PathClaimIdentifier) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
@@ -2191,7 +2191,7 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/v1/credentials/revoke/{nonce}", wrapper.RevokeCredential)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/v1/credentials/{claim-id}", wrapper.ClaimOfferByID)
+		r.Get(options.BaseURL+"/v1/credentials/{claim-id}/offer", wrapper.ClaimOfferByID)
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/v1/credentials/{id}", wrapper.DeleteCredential)
@@ -3785,7 +3785,7 @@ type StrictServerInterface interface {
 	// (POST /v1/credentials/revoke/{nonce})
 	RevokeCredential(ctx context.Context, request RevokeCredentialRequestObject) (RevokeCredentialResponseObject, error)
 	// Claim Offer By ID
-	// (GET /v1/credentials/{claim-id})
+	// (GET /v1/credentials/{claim-id}/offer)
 	ClaimOfferByID(ctx context.Context, request ClaimOfferByIDRequestObject) (ClaimOfferByIDResponseObject, error)
 	// Delete Credential
 	// (DELETE /v1/credentials/{id})
