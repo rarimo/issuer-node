@@ -507,6 +507,10 @@ func checkEnvVars(ctx context.Context, cfg *Configuration) {
 		log.Info(ctx, "ISSUER_API_AUTH_PASSWORD value is missing")
 	}
 
+	if cfg.DuneApiKey == "" {
+		log.Info(ctx, "ISSUER_DUNE_API_KEY value is missing")
+	}
+
 	if cfg.KeyStore.Address == "" {
 		log.Info(ctx, "ISSUER_KEY_STORE_ADDRESS value is missing")
 	}

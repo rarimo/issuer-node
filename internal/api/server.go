@@ -915,7 +915,7 @@ func (s *Server) validateDuneAuth(ctx context.Context) bool {
 		return false
 	}
 
-	r := ctxValue.(*http.Request)
+	r := ctxValue.(http.Request)
 	h := r.Header.Get("X-DUNE-API-KEY")
 	return h == s.cfg.DuneApiKey
 }
