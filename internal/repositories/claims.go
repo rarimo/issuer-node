@@ -1029,15 +1029,16 @@ func (c *claims) CountAllTotal(ctx context.Context, conn db.Querier) (int64, err
 
 func (c *claims) CountAllGrouped(ctx context.Context, conn db.Querier, by string) (dates []string, counts []int64, err error) {
 	const optCap = 128 // how much memory to sacrifice for quick slice appending
-
-	query := `SELECT date_trunc($1, created_at) AS date, COUNT(id) AS count
-	FROM claims
-	GROUP BY date
-	ORDER BY date`
+	query := `SELECT
+		to_char(date_trunc($1, created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD HH24:MI:SS') AS date,
+		COUNT(id) AS count
+		FROM claims
+		GROUP BY date
+		ORDER BY date`
 
 	rows, err := conn.Query(ctx, query, by)
 	if err != nil {
-		return nil, nil, err
+		return
 	}
 	defer rows.Close()
 
@@ -1048,13 +1049,14 @@ func (c *claims) CountAllGrouped(ctx context.Context, conn db.Querier, by string
 		var date string
 		var count int64
 		if err = rows.Scan(&date, &count); err != nil {
-			return nil, nil, err
+			return
 		}
 		dates = append(dates, date)
 		counts = append(counts, count)
 	}
 
-	return dates, counts, nil
+	err = rows.Err()
+	return
 }
 
 func toCredentialDomain(c *dbClaim) *domain.Claim {
