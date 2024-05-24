@@ -352,6 +352,36 @@ paths:
           $ref: '#/components/responses/401'
         '500':
           $ref: '#/components/responses/500'
+  /v1/count_claims:
+    get:
+      summary: Count claims
+      operationId: GetClaimsCount
+      description: Count all registered claims, optionally grouping by date
+      tags:
+        - Claim
+      security:
+        - duneApiKey: []
+      parameters:
+        - in: query
+          name: group_by
+          description: Group by specified part of date of claim creation
+          required: false
+          schema:
+            type: string
+            enum: [hour, day, week, month, quarter, year]
+      responses:
+        '200':
+          description: Total claims
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetClaimsCountResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '500':
+          $ref: '#/components/responses/500'
   /v1/{identifier}/claims/{id}:
     get:
       summary: Get Claim
@@ -605,6 +635,10 @@ components:
     basicAuth:
       type: http
       scheme: basic
+    duneApiKey:
+      type: apiKey
+      in: header
+      name: X-DUNE-API-KEY
 
   schemas:
     KeyValue:
@@ -915,6 +949,23 @@ components:
           x-omitempty: false
         proof:
           type: null
+
+    GetClaimsCountResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+        grouped_dates:
+          type: array
+          items:
+            type: string
+            example: "2023-10-26 00:00"
+        grouped_counts:
+          type: array
+          items:
+            type: integer
+            format: int64
 
     QrCodeLinkShortResponse:
       type: string

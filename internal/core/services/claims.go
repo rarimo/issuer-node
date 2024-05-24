@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	sql "github.com/iden3/go-merkletree-sql/db/pgx/v2"
 	"math/big"
 	"net/url"
 	"strings"
 	"time"
+
+	sql "github.com/iden3/go-merkletree-sql/db/pgx/v2"
 
 	"github.com/google/uuid"
 	core "github.com/iden3/go-iden3-core/v2"
@@ -629,6 +630,17 @@ func (c *claim) revoke(ctx context.Context, did *w3c.DID, nonce uint64, descript
 	}
 
 	return c.icRepo.RevokeNonce(ctx, pgx, &revocation)
+}
+
+func (c *claim) CountAll(ctx context.Context, groupBy string) (total *int64, dates []string, counts []int64, err error) {
+	if groupBy == "" {
+		total = new(int64)
+		*total, err = c.icRepo.CountAllTotal(ctx, c.storage.Pgx)
+		return
+	}
+
+	dates, counts, err = c.icRepo.CountAllGrouped(ctx, c.storage.Pgx, groupBy)
+	return
 }
 
 func (c *claim) getAgentCredential(ctx context.Context, basicMessage *ports.AgentRequest) (*domain.Agent, error) {

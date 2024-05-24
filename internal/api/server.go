@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iden3/go-merkletree-sql/v2"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/iden3/go-merkletree-sql/v2"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -567,6 +568,39 @@ func (s *Server) GetClaimStateStatus(ctx context.Context, request GetClaimStateS
 	}, nil
 }
 
+func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObject) (GetClaimsCountResponseObject, error) {
+	if !s.validateDuneAuth(ctx) {
+		return GetClaimsCount401JSONResponse{N401JSONResponse{
+			Message: "unauthorized",
+		}}, nil
+	}
+
+	var groupBy string
+	if r.Params.GroupBy != nil {
+		switch *r.Params.GroupBy {
+		case Hour, Day, Week, Month, Quarter, Year:
+			groupBy = string(*r.Params.GroupBy)
+		default:
+			return GetClaimsCount400JSONResponse{N400JSONResponse{
+				Message: "invalid group_by field",
+			}}, nil
+		}
+	}
+
+	total, dates, counts, err := s.claimService.CountAll(ctx, groupBy)
+	if err != nil {
+		return GetClaimsCount500JSONResponse{N500JSONResponse{
+			Message: err.Error(),
+		}}, nil
+	}
+
+	return GetClaimsCount200JSONResponse{
+		Total:         total,
+		GroupedDates:  &dates,
+		GroupedCounts: &counts,
+	}, nil
+}
+
 // GetIdentities is the controller to get identities
 func (s *Server) GetIdentities(ctx context.Context, request GetIdentitiesRequestObject) (GetIdentitiesResponseObject, error) {
 	var response GetIdentities200JSONResponse
@@ -873,4 +907,15 @@ func writeFile(path string, mimeType string, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", mimeType)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(f)
+}
+
+func (s *Server) validateDuneAuth(ctx context.Context) bool {
+	ctxValue := ctx.Value(ReqReq)
+	if ctxValue == nil {
+		return false
+	}
+
+	r := ctxValue.(*http.Request)
+	h := r.Header.Get("X-DUNE-API-KEY")
+	return h == s.cfg.DuneApiKey
 }

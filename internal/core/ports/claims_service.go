@@ -198,4 +198,5 @@ type ClaimsService interface {
 	GetByStateIDWithMTPProof(ctx context.Context, did *w3c.DID, state string) ([]*domain.Claim, error)
 	GetMTProof(ctx context.Context, leafKey *big.Int, root *merkletree.Hash, merkleTreeID int64) (*merkletree.Proof, error)
 	GetMTIDByKey(ctx context.Context, key string) (int64, error)
+	CountAll(ctx context.Context, groupBy string) (total *int64, dates []string, counts []int64, err error)
 }
