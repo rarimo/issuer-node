@@ -317,6 +317,15 @@ type GetClaimMTPParams struct {
 type GetClaimsCountParams struct {
 	// GroupBy Group by specified part of date of claim creation
 	GroupBy *GetClaimsCountParamsGroupBy `form:"group_by,omitempty" json:"group_by,omitempty"`
+
+	// Limit Limit the number of results when grouping by date
+	Limit *uint64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Since UTC timestamp since which the records are queried
+	Since *string `form:"since,omitempty" json:"since,omitempty"`
+
+	// Until UTC timestamp until which the records are queried
+	Until *string `form:"until,omitempty" json:"until,omitempty"`
 }
 
 // GetClaimsCountParamsGroupBy defines parameters for GetClaimsCount.
@@ -756,6 +765,30 @@ func (siw *ServerInterfaceWrapper) GetClaimsCount(w http.ResponseWriter, r *http
 	err = runtime.BindQueryParameter("form", true, false, "group_by", r.URL.Query(), &params.GroupBy)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "group_by", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "since" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "since", r.URL.Query(), &params.Since)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "since", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "until" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "until", r.URL.Query(), &params.Until)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "until", Err: err})
 		return
 	}
 

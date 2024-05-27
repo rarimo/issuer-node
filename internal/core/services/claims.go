@@ -593,6 +593,19 @@ func (c *claim) GetMTIDByKey(ctx context.Context, key string) (int64, error) {
 	return iMT, nil
 }
 
+func (c *claim) Count(ctx context.Context, params ports.ClaimsCountParams) (total *int64, dates []string, counts []int64, err error) {
+	if params.GroupBy == "" {
+		total = new(int64)
+		*total, err = c.icRepo.CountTotal(ctx, c.storage.Pgx, params)
+		return
+	}
+
+	dates, counts, err = c.icRepo.CountGrouped(ctx, c.storage.Pgx, params)
+	// dates and counts come in descending order
+	dates, counts = reverseSlice(dates), reverseSlice(counts)
+	return
+}
+
 func (c *claim) revoke(ctx context.Context, did *w3c.DID, nonce uint64, description string, pgx db.Querier) error {
 	rID := new(big.Int).SetUint64(nonce)
 	revocation := domain.Revocation{
@@ -630,17 +643,6 @@ func (c *claim) revoke(ctx context.Context, did *w3c.DID, nonce uint64, descript
 	}
 
 	return c.icRepo.RevokeNonce(ctx, pgx, &revocation)
-}
-
-func (c *claim) CountAll(ctx context.Context, groupBy string) (total *int64, dates []string, counts []int64, err error) {
-	if groupBy == "" {
-		total = new(int64)
-		*total, err = c.icRepo.CountAllTotal(ctx, c.storage.Pgx)
-		return
-	}
-
-	dates, counts, err = c.icRepo.CountAllGrouped(ctx, c.storage.Pgx, groupBy)
-	return
 }
 
 func (c *claim) getAgentCredential(ctx context.Context, basicMessage *ports.AgentRequest) (*domain.Agent, error) {
@@ -792,4 +794,12 @@ func (c *claim) buildMTProofURL(credID uuid.UUID) string {
 	}
 
 	return fmt.Sprintf("%s/v1/claims/%s/mtp", c.host, credID.String())
+}
+
+func reverseSlice[T any](slice []T) []T {
+	reversed := make([]T, len(slice))
+	for i, v := range slice {
+		reversed[len(slice)-1-i] = v
+	}
+	return reversed
 }

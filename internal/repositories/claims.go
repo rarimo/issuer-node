@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -1018,7 +1019,7 @@ func (c *claims) GetByStateIDWithMTPProof(ctx context.Context, conn db.Querier, 
 	return claims, nil
 }
 
-func (c *claims) CountAllTotal(ctx context.Context, conn db.Querier) (int64, error) {
+func (c *claims) CountTotal(ctx context.Context, conn db.Querier, params ports.ClaimsCountParams) (int64, error) {
 	var res int64
 	err := conn.QueryRow(ctx, `SELECT COUNT(id) FROM claims`).Scan(&res)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1027,21 +1028,32 @@ func (c *claims) CountAllTotal(ctx context.Context, conn db.Querier) (int64, err
 	return res, err
 }
 
-func (c *claims) CountAllGrouped(ctx context.Context, conn db.Querier, by string) (dates []string, counts []int64, err error) {
-	const optCap = 128 // how much memory to sacrifice for quick slice appending
-	query := `SELECT
+func (c *claims) CountGrouped(ctx context.Context, conn db.Querier, params ports.ClaimsCountParams) (dates []string, counts []int64, err error) {
+	head := `SELECT
 		to_char(date_trunc($1, created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD HH24:MI:SS') AS date,
 		COUNT(id) AS count
-		FROM claims
-		GROUP BY date
-		ORDER BY date`
+		FROM claims`
+	tail := `GROUP BY date ORDER BY date DESC LIMIT $2`
 
-	rows, err := conn.Query(ctx, query, by)
+	where := make([]string, 0, 2)
+	if params.Since != nil {
+		where = append(where, fmt.Sprintf("created_at >= '%s'", params.Since.Format(time.RFC3339)))
+	}
+	if params.Until != nil {
+		where = append(where, fmt.Sprintf("created_at <= '%s'", params.Until.Format(time.RFC3339)))
+	}
+	if len(where) > 0 {
+		head = fmt.Sprintf("%s WHERE %s", head, strings.Join(where, " AND "))
+	}
+
+	query := fmt.Sprintf("%s %s", head, tail)
+	rows, err := conn.Query(ctx, query, params.GroupBy, params.Limit)
 	if err != nil {
 		return
 	}
 	defer rows.Close()
 
+	const optCap = 128 // how much memory to sacrifice for quick slice appending
 	dates = make([]string, 0, optCap)
 	counts = make([]int64, 0, optCap)
 

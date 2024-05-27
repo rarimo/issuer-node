@@ -356,7 +356,10 @@ paths:
     get:
       summary: Count claims
       operationId: GetClaimsCount
-      description: Count all registered claims, optionally grouping by date
+      description: |
+        Count all registered claims, optionally grouping by date.
+        Grouped records are always in ascending order, but the most
+        recent are retrieved when `until` filter is not applied.
       tags:
         - Claim
       security:
@@ -369,6 +372,30 @@ paths:
           schema:
             type: string
             enum: [hour, day, week, month, quarter, year]
+        - in: query
+          name: limit
+          description: Limit the number of results when grouping by date
+          required: false
+          schema:
+            type: integer
+            format: uint64
+            default: 100
+        - in: query
+          name: since
+          description: UTC timestamp since which the records are queried
+          required: false
+          schema:
+            type: string
+            format: time.Time
+            example: 2006-01-02 15:04:05
+        - in: query
+          name: until
+          description: UTC timestamp until which the records are queried
+          required: false
+          schema:
+            type: string
+            format: time.Time
+            example: 2006-01-02 15:04:05
       responses:
         '200':
           description: Total claims

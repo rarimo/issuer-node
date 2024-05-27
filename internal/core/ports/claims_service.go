@@ -62,6 +62,13 @@ type ClaimsFilter struct {
 	Proofs          []verifiable.ProofType
 }
 
+type ClaimsCountParams struct {
+	GroupBy string
+	Limit   uint64
+	Since   *time.Time
+	Until   *time.Time
+}
+
 // NewClaimsFilter returns a valid claims filter
 func NewClaimsFilter(schemaHash, schemaType, subject, queryField, queryValue *string, self, revoked *bool) (*ClaimsFilter, error) {
 	var filter ClaimsFilter
@@ -179,6 +186,35 @@ func NewAgentRequest(basicMessage *comm.BasicMessage) (*AgentRequest, error) {
 	}, nil
 }
 
+func NewClaimsCountParams(groupBy string, limit *uint64, since, until *string) (params ClaimsCountParams, err error) {
+	const timeFormat = "2006-01-02 15:04:05"
+	params.GroupBy = groupBy
+
+	params.Limit = 100
+	if limit != nil && *limit > 0 {
+		params.Limit = *limit
+	}
+
+	if since != nil {
+		params.Since = new(time.Time)
+		*params.Since, err = time.Parse(timeFormat, *since)
+		if err != nil {
+			err = fmt.Errorf("invalid since field: %w", err)
+			return
+		}
+	}
+
+	if until != nil {
+		params.Until = new(time.Time)
+		*params.Until, err = time.Parse(timeFormat, *until)
+		if err != nil {
+			err = fmt.Errorf("invalid until field: %w", err)
+		}
+	}
+
+	return
+}
+
 // ClaimsService is the interface implemented by the claim service
 type ClaimsService interface {
 	Save(ctx context.Context, claimReq *CreateClaimRequest) (*domain.Claim, error)
@@ -198,5 +234,5 @@ type ClaimsService interface {
 	GetByStateIDWithMTPProof(ctx context.Context, did *w3c.DID, state string) ([]*domain.Claim, error)
 	GetMTProof(ctx context.Context, leafKey *big.Int, root *merkletree.Hash, merkleTreeID int64) (*merkletree.Proof, error)
 	GetMTIDByKey(ctx context.Context, key string) (int64, error)
-	CountAll(ctx context.Context, groupBy string) (total *int64, dates []string, counts []int64, err error)
+	Count(ctx context.Context, params ClaimsCountParams) (total *int64, dates []string, counts []int64, err error)
 }

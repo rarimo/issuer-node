@@ -587,7 +587,14 @@ func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObje
 		}
 	}
 
-	total, dates, counts, err := s.claimService.CountAll(ctx, groupBy)
+	params, err := ports.NewClaimsCountParams(groupBy, r.Params.Limit, r.Params.Since, r.Params.Until)
+	if err != nil {
+		return GetClaimsCount400JSONResponse{N400JSONResponse{
+			Message: err.Error(),
+		}}, nil
+	}
+
+	total, dates, counts, err := s.claimService.Count(ctx, params)
 	if err != nil {
 		return GetClaimsCount500JSONResponse{N500JSONResponse{
 			Message: err.Error(),
