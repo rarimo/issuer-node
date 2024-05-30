@@ -66,12 +66,6 @@ type ClaimOfferResponse struct {
 	Type     string      `json:"type"`
 }
 
-// ClaimsByDate defines model for ClaimsByDate.
-type ClaimsByDate struct {
-	Counts []int64  `json:"counts"`
-	Dates  []string `json:"dates"`
-}
-
 // Config defines model for Config.
 type Config = []KeyValue
 
@@ -179,10 +173,10 @@ type GetClaimStateStatusResponse struct {
 
 // GetClaimsCountResponse defines model for GetClaimsCountResponse.
 type GetClaimsCountResponse struct {
-	ByDate     *ClaimsByDate           `json:"by_date,omitempty"`
-	ByType     map[string]int64        `json:"by_type,omitempty"`
-	ByTypeDate map[string]ClaimsByDate `json:"by_type_date,omitempty"`
-	Total      *int64                  `json:"total,omitempty"`
+	GroupedCounts []int64  `json:"grouped_counts,omitempty"`
+	GroupedDates  []string `json:"grouped_dates,omitempty"`
+	GroupedTypes  []string `json:"grouped_types,omitempty"`
+	Total         *int64   `json:"total,omitempty"`
 }
 
 // GetClaimsResponse defines model for GetClaimsResponse.

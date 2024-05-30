@@ -357,12 +357,10 @@ paths:
       summary: Count claims
       operationId: GetClaimsCount
       description: |
-        Count all registered claims, optionally grouping by date.
+        Count all registered claims, optionally grouping by date and type.
         Grouped records are always in ascending order, but the most
         recent are retrieved when `until` filter is not applied.
-        We only count two types of credentials: `IdentityProviders`
-        (PoH) and `VotingCredential` (passport). Other types are considered
-        outdated and therefore not returned.
+        The lengths of grouped data are always equal.
       tags:
         - Claim
       security:
@@ -1006,38 +1004,24 @@ components:
         total:
           type: integer
           format: int64
-        by_type:
-          type: object
-          # map[CredentialType]int64
-          additionalProperties:
+        grouped_counts:
+          type: array
+          items:
             type: integer
             format: int64
           x-go-type-skip-optional-pointer: true
-        by_date:
-          $ref: '#/components/schemas/ClaimsByDate'
-          x-go-type-skip-optional-pointer: true
-        by_type_date:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/ClaimsByDate'
-          x-go-type-skip-optional-pointer: true
-
-    ClaimsByDate:
-      type: object
-      required:
-        - dates
-        - counts
-      properties:
-        dates:
+        grouped_dates:
           type: array
           items:
             type: string
             example: "2023-10-26 00:00"
-        counts:
+          x-go-type-skip-optional-pointer: true
+        grouped_types:
           type: array
           items:
-            type: integer
-            format: int64
+            type: string
+            example: "VotingCredential"
+          x-go-type-skip-optional-pointer: true
 
     QrCodeLinkShortResponse:
       type: string

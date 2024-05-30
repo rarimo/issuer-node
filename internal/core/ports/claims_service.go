@@ -72,15 +72,10 @@ type ClaimsCountParams struct {
 }
 
 type ClaimsCountResult struct {
-	Total         *int64
-	ByDate        ClaimsCountByDatesResult
-	ByType        map[string]int64
-	ByTypeAndDate map[string]ClaimsCountByDatesResult
-}
-
-type ClaimsCountByDatesResult struct {
-	Dates  []string
+	Total  *int64
 	Counts []int64
+	Dates  []string
+	Types  []string
 }
 
 // NewClaimsFilter returns a valid claims filter

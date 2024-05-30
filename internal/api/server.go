@@ -570,9 +570,7 @@ func (s *Server) GetClaimStateStatus(ctx context.Context, request GetClaimStateS
 
 func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObject) (GetClaimsCountResponseObject, error) {
 	if !s.validateDuneAuth(ctx) {
-		return GetClaimsCount401JSONResponse{N401JSONResponse{
-			Message: "unauthorized",
-		}}, nil
+		return GetClaimsCount401JSONResponse{N401JSONResponse{Message: "unauthorized"}}, nil
 	}
 
 	var byDate string
@@ -581,48 +579,33 @@ func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObje
 		case Hour, Day, Week, Month, Quarter, Year:
 			byDate = string(*r.Params.GroupByDate)
 		default:
-			return GetClaimsCount400JSONResponse{N400JSONResponse{
-				Message: "invalid group_by field",
-			}}, nil
+			return GetClaimsCount400JSONResponse{N400JSONResponse{Message: "invalid group_by field"}}, nil
 		}
 	}
 
-	params, err := ports.NewClaimsCountParams(byDate, r.Params.GroupByType, r.Params.FilterType, r.Params.Limit, r.Params.Since, r.Params.Until)
+	params, err := ports.NewClaimsCountParams(
+		byDate,
+		r.Params.GroupByType,
+		r.Params.FilterType,
+		r.Params.Limit,
+		r.Params.Since,
+		r.Params.Until,
+	)
 	if err != nil {
-		return GetClaimsCount400JSONResponse{N400JSONResponse{
-			Message: err.Error(),
-		}}, nil
+		return GetClaimsCount400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
 	}
 
 	result, err := s.claimService.Count(ctx, params)
 	if err != nil {
-		return GetClaimsCount500JSONResponse{N500JSONResponse{
-			Message: err.Error(),
-		}}, nil
+		return GetClaimsCount500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
 	}
 
-	resp := GetClaimsCount200JSONResponse{
-		Total:  result.Total,
-		ByType: result.ByType,
-	}
-
-	if len(result.ByDate.Dates) != 0 {
-		resp.ByDate = new(ClaimsByDate)
-		resp.ByDate.Dates = result.ByDate.Dates
-		resp.ByDate.Counts = result.ByDate.Counts
-	}
-
-	if len(result.ByTypeAndDate) != 0 {
-		resp.ByTypeDate = make(map[string]ClaimsByDate, len(result.ByTypeAndDate))
-		for typ, group := range result.ByTypeAndDate {
-			resp.ByTypeDate[typ] = ClaimsByDate{
-				Dates:  group.Dates,
-				Counts: group.Counts,
-			}
-		}
-	}
-
-	return resp, nil
+	return GetClaimsCount200JSONResponse{
+		Total:         result.Total,
+		GroupedCounts: result.Counts,
+		GroupedDates:  result.Dates,
+		GroupedTypes:  result.Types,
+	}, nil
 }
 
 // GetIdentities is the controller to get identities

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -1020,58 +1019,6 @@ func (c *claims) GetByStateIDWithMTPProof(ctx context.Context, conn db.Querier, 
 	return claims, nil
 }
 
-func (c *claims) CountTotal(ctx context.Context, conn db.Querier, params ports.ClaimsCountParams, vcType *string) (int64, error) {
-	var res int64
-	err := conn.QueryRow(ctx, `SELECT COUNT(id) FROM claims`).Scan(&res)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil
-	}
-	return res, err
-}
-
-func (c *claims) CountGrouped(ctx context.Context, conn db.Querier, params ports.ClaimsCountParams) (dates []string, counts []int64, err error) {
-	head := `SELECT
-		to_char(date_trunc($1, created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD HH24:MI:SS') AS date,
-		COUNT(id) AS count
-		FROM claims`
-	tail := `GROUP BY date ORDER BY date DESC LIMIT $2`
-
-	where := make([]string, 0, 2)
-	if params.Since != nil {
-		where = append(where, fmt.Sprintf("created_at >= '%s'", params.Since.Format(time.RFC3339)))
-	}
-	if params.Until != nil {
-		where = append(where, fmt.Sprintf("created_at <= '%s'", params.Until.Format(time.RFC3339)))
-	}
-	if len(where) > 0 {
-		head = fmt.Sprintf("%s WHERE %s", head, strings.Join(where, " AND "))
-	}
-
-	query := fmt.Sprintf("%s %s", head, tail)
-	rows, err := conn.Query(ctx, query, params.GroupByDate, params.Limit)
-	if err != nil {
-		return
-	}
-	defer rows.Close()
-
-	const optCap = 128 // how much memory to sacrifice for quick slice appending
-	dates = make([]string, 0, optCap)
-	counts = make([]int64, 0, optCap)
-
-	for rows.Next() {
-		var date string
-		var count int64
-		if err = rows.Scan(&date, &count); err != nil {
-			return
-		}
-		dates = append(dates, date)
-		counts = append(counts, count)
-	}
-
-	err = rows.Err()
-	return
-}
-
 func (c *claims) Count(ctx context.Context, conn db.Querier, params ports.ClaimsCountParams) (ports.ClaimsCountResult, error) {
 	q := buildClaimsGroupedCountQuery(params)
 	str, args, err := q.ToSql()
@@ -1085,7 +1032,7 @@ func (c *claims) Count(ctx context.Context, conn db.Querier, params ports.Claims
 	}
 	defer rows.Close()
 
-	return scanClaimsGroupedCountResult(params, rows)
+	return scanClaimsCountResult(params, rows)
 }
 
 func buildClaimsGroupedCountQuery(params ports.ClaimsCountParams) squirrel.SelectBuilder {
@@ -1094,6 +1041,21 @@ func buildClaimsGroupedCountQuery(params ports.ClaimsCountParams) squirrel.Selec
 		createdAtColumn = "created_at"
 	)
 	q := squirrel.Select("COUNT(id) AS count").From("claims")
+
+	if params.GroupByDate != "" {
+		q = q.Column("to_char(date_trunc(?, created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD HH24:MI:SS') AS date",
+			params.GroupByDate).
+			GroupBy("date").
+			OrderBy("date DESC").
+			Limit(params.Limit)
+	}
+
+	if params.GroupByType {
+		q = q.Column(typeColumn).
+			GroupBy(typeColumn).
+			OrderBy(typeColumn).
+			Limit(params.Limit)
+	}
 
 	if len(params.FilterByType) > 0 {
 		q = q.Where(squirrel.Eq{typeColumn: params.FilterByType})
@@ -1105,26 +1067,17 @@ func buildClaimsGroupedCountQuery(params ports.ClaimsCountParams) squirrel.Selec
 		q = q.Where(squirrel.LtOrEq{createdAtColumn: *params.Until})
 	}
 
-	if params.GroupByDate != "" {
-		q = q.Column("to_char(date_trunc($1, created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD HH24:MI:SS') AS date",
-			params.GroupByDate).
-			GroupBy("date").
-			OrderBy("date DESC").
-			Limit(params.Limit)
-	}
-
-	if params.GroupByType {
-		q = q.Column(typeColumn).GroupBy(typeColumn).OrderBy(typeColumn).Limit(params.Limit)
-	}
-
-	return q
+	return q.PlaceholderFormat(squirrel.Dollar) // required for raw Postgres query
 }
 
-func scanClaimsGroupedCountResult(params ports.ClaimsCountParams, rows pgx.Rows) (res ports.ClaimsCountResult, err error) {
+func scanClaimsCountResult(params ports.ClaimsCountParams, rows pgx.Rows) (res ports.ClaimsCountResult, err error) {
 	var (
-		byType        = params.GroupByType && params.GroupByDate == ""
-		byDate        = params.GroupByDate != "" && !params.GroupByType
-		byTypeAndDate = params.GroupByDate != "" && params.GroupByType
+		byType = params.GroupByType
+		byDate = params.GroupByDate != ""
+
+		count int64
+		date  string
+		typ   string
 	)
 
 	if !byType && !byDate {
@@ -1135,57 +1088,41 @@ func scanClaimsGroupedCountResult(params ports.ClaimsCountParams, rows pgx.Rows)
 	}
 
 	const optCap = 128 // how much memory to sacrifice for quick slice appending
-	var (
-		dates  = make([]string, 0, optCap)
-		counts = make([]int64, 0, optCap)
-		types  = make([]string, 0, optCap)
-		date   string
-		count  int64
-		typ    string
-	)
+	res.Counts = make([]int64, 0, optCap)
+	if byType {
+		res.Types = make([]string, 0, optCap)
+	}
+	if byDate {
+		res.Dates = make([]string, 0, optCap)
+	}
 
-	// based on SelectBuilder calls, the order is count, type, date
+	// based on SelectBuilder calls, the order is: count, date, type
 	for rows.Next() {
 		switch {
-		case byDate:
-			err = rows.Scan(&count, &date)
-			dates = append(dates, date)
-		case byType:
+		case byType && !byDate:
 			err = rows.Scan(&count, &typ)
-			types = append(types, typ)
-		case byTypeAndDate:
-			err = rows.Scan(&count, &typ, &date)
-			types = append(types, typ)
-			dates = append(dates, date)
+			res.Types = append(res.Types, typ)
+		case !byType: // byDate == true
+			err = rows.Scan(&count, &date)
+			res.Dates = append(res.Dates, date)
+		default:
+			err = rows.Scan(&count, &date, &typ)
+			res.Types = append(res.Types, typ)
+			res.Dates = append(res.Dates, date)
 		}
-		counts = append(counts, count)
+
+		res.Counts = append(res.Counts, count)
 		if err != nil {
 			return
 		}
 	}
+
 	if err = rows.Err(); err != nil {
 		return
 	}
-	// TODO. what if len(dates) != len(counts) or len(types) != len(counts) or len(dates) != len(types)?
 
-	switch {
-	case byDate:
-		res.ByDate.Dates = dates
-		res.ByDate.Counts = counts
-	case byType:
-		res.ByType = make(map[string]int64, len(types))
-		for i, t := range types {
-			res.ByType[t] = counts[i]
-		}
-	case byTypeAndDate:
-		res.ByTypeAndDate = make(map[string]ports.ClaimsCountByDatesResult, len(types))
-		for i, t := range types {
-			// FIXME. this is inefficient, probably
-			res.ByTypeAndDate[t] = ports.ClaimsCountByDatesResult{
-				Dates:  append(res.ByTypeAndDate[t].Dates, dates[i]),
-				Counts: append(res.ByTypeAndDate[t].Counts, counts[i]),
-			}
-		}
+	if lc, ld, lt := len(res.Counts), len(res.Dates), len(res.Types); byDate && lc != ld || byType && lc != lt {
+		err = fmt.Errorf("unexpected lengths: counts=%d, dates=%d, types=%d", lc, ld, lt)
 	}
 	return
 }
