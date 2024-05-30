@@ -600,12 +600,25 @@ func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObje
 		return GetClaimsCount500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
 	}
 
-	return GetClaimsCount200JSONResponse{
-		Total:         result.Total,
-		GroupedCounts: result.Counts,
-		GroupedDates:  result.Dates,
-		GroupedTypes:  result.Types,
-	}, nil
+	resp := GetClaimsCount200JSONResponse{
+		Total:  result.Total,
+		Counts: result.Counts,
+		Dates:  result.Dates,
+		Types:  result.Types,
+	}
+	if len(result.DatesTypes) == 0 {
+		return resp, nil
+	}
+
+	resp.DateTypes = make([]ClaimsCountByDateType, 0, len(result.DatesTypes))
+	for date, types := range result.DatesTypes {
+		resp.DateTypes = append(resp.DateTypes, ClaimsCountByDateType{
+			Date:  date,
+			Types: types,
+		})
+	}
+
+	return resp, nil
 }
 
 // GetIdentities is the controller to get identities

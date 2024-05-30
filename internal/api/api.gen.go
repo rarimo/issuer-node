@@ -66,6 +66,12 @@ type ClaimOfferResponse struct {
 	Type     string      `json:"type"`
 }
 
+// ClaimsCountByDateType defines model for ClaimsCountByDateType.
+type ClaimsCountByDateType struct {
+	Date  string           `json:"date"`
+	Types map[string]int64 `json:"types"`
+}
+
 // Config defines model for Config.
 type Config = []KeyValue
 
@@ -173,10 +179,11 @@ type GetClaimStateStatusResponse struct {
 
 // GetClaimsCountResponse defines model for GetClaimsCountResponse.
 type GetClaimsCountResponse struct {
-	GroupedCounts []int64  `json:"grouped_counts,omitempty"`
-	GroupedDates  []string `json:"grouped_dates,omitempty"`
-	GroupedTypes  []string `json:"grouped_types,omitempty"`
-	Total         *int64   `json:"total,omitempty"`
+	Counts    []int64                 `json:"counts,omitempty"`
+	DateTypes []ClaimsCountByDateType `json:"date_types,omitempty"`
+	Dates     []string                `json:"dates,omitempty"`
+	Total     *int64                  `json:"total,omitempty"`
+	Types     []string                `json:"types,omitempty"`
 }
 
 // GetClaimsResponse defines model for GetClaimsResponse.
@@ -324,7 +331,8 @@ type GetClaimsCountParams struct {
 	GroupByType *bool `form:"group_by_type,omitempty" json:"group_by_type,omitempty"`
 
 	// FilterType Filter by credential type, e.g. `KYCAgeCredential` or `VotingCredential`.
-	// All counts are affected.
+	// All counts are affected. In case you group by date and type, the filtered
+	// types appear in `[*].types` map.
 	FilterType *[]string `form:"filter[type],omitempty" json:"filter[type],omitempty"`
 
 	// Limit Limit the number of results. Works only when grouping by date or type.

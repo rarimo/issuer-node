@@ -594,7 +594,29 @@ func (c *claim) GetMTIDByKey(ctx context.Context, key string) (int64, error) {
 }
 
 func (c *claim) Count(ctx context.Context, params ports.ClaimsCountParams) (ports.ClaimsCountResult, error) {
-	return c.icRepo.Count(ctx, c.storage.Pgx, params)
+	res, err := c.icRepo.Count(ctx, c.storage.Pgx, params)
+	if err != nil {
+		return ports.ClaimsCountResult{}, fmt.Errorf("failed to count claims: %w", err)
+	}
+
+	if params.GroupByDate == "" || !params.GroupByType {
+		return res, nil
+	}
+
+	res.DatesTypes = make(map[string]map[string]int64)
+	for i, date := range res.Dates {
+		entry, ok := res.DatesTypes[date]
+		if !ok { // date encountered for the first time
+			entry = make(map[string]int64)
+		}
+		// for each unique date, we've got an array of unique types:
+		// counts will never be overwritten
+		typ := res.Types[i]
+		entry[typ] = res.Counts[i]
+		res.DatesTypes[date] = entry
+	}
+
+	return res, nil
 }
 
 func (c *claim) revoke(ctx context.Context, did *w3c.DID, nonce uint64, description string, pgx db.Querier) error {

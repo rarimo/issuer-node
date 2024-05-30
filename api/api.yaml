@@ -357,7 +357,7 @@ paths:
       summary: Count claims
       operationId: GetClaimsCount
       description: |
-        Count all registered claims, optionally grouping by date and type.
+        Count all registered claims, optionally grouping by date.
         Grouped records are always in ascending order, but the most
         recent are retrieved when `until` filter is not applied.
         The lengths of grouped data are always equal.
@@ -386,7 +386,8 @@ paths:
           name: filter[type]
           description: |
             Filter by credential type, e.g. `KYCAgeCredential` or `VotingCredential`.
-            All counts are affected.
+            All counts are affected. In case you group by date and type, the filtered
+            types appear in `[*].types` map.
           required: false
           schema:
             type: array
@@ -1004,24 +1005,44 @@ components:
         total:
           type: integer
           format: int64
-        grouped_counts:
+        counts:
           type: array
           items:
             type: integer
             format: int64
           x-go-type-skip-optional-pointer: true
-        grouped_dates:
+        dates:
           type: array
           items:
             type: string
             example: "2023-10-26 00:00"
           x-go-type-skip-optional-pointer: true
-        grouped_types:
+        types:
           type: array
           items:
             type: string
             example: "VotingCredential"
           x-go-type-skip-optional-pointer: true
+        date_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClaimsCountByDateType'
+          x-go-type-skip-optional-pointer: true
+
+    ClaimsCountByDateType:
+      type: object
+      required:
+        - date
+        - types
+      properties:
+        date:
+          type: string
+          example: "2023-10-26 00:00"
+        types:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
 
     QrCodeLinkShortResponse:
       type: string

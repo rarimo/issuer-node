@@ -76,6 +76,8 @@ type ClaimsCountResult struct {
 	Counts []int64
 	Dates  []string
 	Types  []string
+	// map(date -> map(type -> count))
+	DatesTypes map[string]map[string]int64
 }
 
 // NewClaimsFilter returns a valid claims filter
