@@ -593,17 +593,8 @@ func (c *claim) GetMTIDByKey(ctx context.Context, key string) (int64, error) {
 	return iMT, nil
 }
 
-func (c *claim) Count(ctx context.Context, params ports.ClaimsCountParams) (total *int64, dates []string, counts []int64, err error) {
-	if params.GroupBy == "" {
-		total = new(int64)
-		*total, err = c.icRepo.CountTotal(ctx, c.storage.Pgx, params)
-		return
-	}
-
-	dates, counts, err = c.icRepo.CountGrouped(ctx, c.storage.Pgx, params)
-	// dates and counts come in descending order
-	dates, counts = reverseSlice(dates), reverseSlice(counts)
-	return
+func (c *claim) Count(ctx context.Context, params ports.ClaimsCountParams) (ports.ClaimsCountResult, error) {
+	return c.icRepo.Count(ctx, c.storage.Pgx, params)
 }
 
 func (c *claim) revoke(ctx context.Context, did *w3c.DID, nonce uint64, description string, pgx db.Querier) error {

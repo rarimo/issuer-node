@@ -17,6 +17,7 @@ import (
 	"github.com/labstack/gommon/log"
 	"github.com/lib/pq"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/rarimo/issuer-node/internal/common"
 	"github.com/rarimo/issuer-node/internal/core/domain"
 	"github.com/rarimo/issuer-node/internal/core/ports"
@@ -1019,7 +1020,7 @@ func (c *claims) GetByStateIDWithMTPProof(ctx context.Context, conn db.Querier, 
 	return claims, nil
 }
 
-func (c *claims) CountTotal(ctx context.Context, conn db.Querier, params ports.ClaimsCountParams) (int64, error) {
+func (c *claims) CountTotal(ctx context.Context, conn db.Querier, params ports.ClaimsCountParams, vcType *string) (int64, error) {
 	var res int64
 	err := conn.QueryRow(ctx, `SELECT COUNT(id) FROM claims`).Scan(&res)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1047,7 +1048,7 @@ func (c *claims) CountGrouped(ctx context.Context, conn db.Querier, params ports
 	}
 
 	query := fmt.Sprintf("%s %s", head, tail)
-	rows, err := conn.Query(ctx, query, params.GroupBy, params.Limit)
+	rows, err := conn.Query(ctx, query, params.GroupByDate, params.Limit)
 	if err != nil {
 		return
 	}
@@ -1068,6 +1069,124 @@ func (c *claims) CountGrouped(ctx context.Context, conn db.Querier, params ports
 	}
 
 	err = rows.Err()
+	return
+}
+
+func (c *claims) Count(ctx context.Context, conn db.Querier, params ports.ClaimsCountParams) (ports.ClaimsCountResult, error) {
+	q := buildClaimsGroupedCountQuery(params)
+	str, args, err := q.ToSql()
+	if err != nil {
+		panic(err) // engineer's error in buildClaimsGroupedCountQuery
+	}
+
+	rows, err := conn.Query(ctx, str, args...)
+	if err != nil {
+		return ports.ClaimsCountResult{}, err
+	}
+	defer rows.Close()
+
+	return scanClaimsGroupedCountResult(params, rows)
+}
+
+func buildClaimsGroupedCountQuery(params ports.ClaimsCountParams) squirrel.SelectBuilder {
+	const (
+		typeColumn      = "schema_type_description"
+		createdAtColumn = "created_at"
+	)
+	q := squirrel.Select("COUNT(id) AS count").From("claims")
+
+	if len(params.FilterByType) > 0 {
+		q = q.Where(squirrel.Eq{typeColumn: params.FilterByType})
+	}
+	if params.Since != nil {
+		q = q.Where(squirrel.GtOrEq{createdAtColumn: *params.Since})
+	}
+	if params.Until != nil {
+		q = q.Where(squirrel.LtOrEq{createdAtColumn: *params.Until})
+	}
+
+	if params.GroupByDate != "" {
+		q = q.Column("to_char(date_trunc($1, created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD HH24:MI:SS') AS date",
+			params.GroupByDate).
+			GroupBy("date").
+			OrderBy("date DESC").
+			Limit(params.Limit)
+	}
+
+	if params.GroupByType {
+		q = q.Column(typeColumn).GroupBy(typeColumn).OrderBy(typeColumn).Limit(params.Limit)
+	}
+
+	return q
+}
+
+func scanClaimsGroupedCountResult(params ports.ClaimsCountParams, rows pgx.Rows) (res ports.ClaimsCountResult, err error) {
+	var (
+		byType        = params.GroupByType && params.GroupByDate == ""
+		byDate        = params.GroupByDate != "" && !params.GroupByType
+		byTypeAndDate = params.GroupByDate != "" && params.GroupByType
+	)
+
+	if !byType && !byDate {
+		res.Total = new(int64)
+		rows.Next()
+		err = rows.Scan(res.Total)
+		return
+	}
+
+	const optCap = 128 // how much memory to sacrifice for quick slice appending
+	var (
+		dates  = make([]string, 0, optCap)
+		counts = make([]int64, 0, optCap)
+		types  = make([]string, 0, optCap)
+		date   string
+		count  int64
+		typ    string
+	)
+
+	// based on SelectBuilder calls, the order is count, type, date
+	for rows.Next() {
+		switch {
+		case byDate:
+			err = rows.Scan(&count, &date)
+			dates = append(dates, date)
+		case byType:
+			err = rows.Scan(&count, &typ)
+			types = append(types, typ)
+		case byTypeAndDate:
+			err = rows.Scan(&count, &typ, &date)
+			types = append(types, typ)
+			dates = append(dates, date)
+		}
+		counts = append(counts, count)
+		if err != nil {
+			return
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return
+	}
+	// TODO. what if len(dates) != len(counts) or len(types) != len(counts) or len(dates) != len(types)?
+
+	switch {
+	case byDate:
+		res.ByDate.Dates = dates
+		res.ByDate.Counts = counts
+	case byType:
+		res.ByType = make(map[string]int64, len(types))
+		for i, t := range types {
+			res.ByType[t] = counts[i]
+		}
+	case byTypeAndDate:
+		res.ByTypeAndDate = make(map[string]ports.ClaimsCountByDatesResult, len(types))
+		for i, t := range types {
+			// FIXME. this is inefficient, probably
+			res.ByTypeAndDate[t] = ports.ClaimsCountByDatesResult{
+				Dates:  append(res.ByTypeAndDate[t].Dates, dates[i]),
+				Counts: append(res.ByTypeAndDate[t].Counts, counts[i]),
+			}
+		}
+	}
 	return
 }
 

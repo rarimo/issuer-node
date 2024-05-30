@@ -63,10 +63,24 @@ type ClaimsFilter struct {
 }
 
 type ClaimsCountParams struct {
-	GroupBy string
-	Limit   uint64
-	Since   *time.Time
-	Until   *time.Time
+	GroupByDate  string
+	GroupByType  bool
+	FilterByType []string
+	Limit        uint64
+	Since        *time.Time
+	Until        *time.Time
+}
+
+type ClaimsCountResult struct {
+	Total         *int64
+	ByDate        ClaimsCountByDatesResult
+	ByType        map[string]int64
+	ByTypeAndDate map[string]ClaimsCountByDatesResult
+}
+
+type ClaimsCountByDatesResult struct {
+	Dates  []string
+	Counts []int64
 }
 
 // NewClaimsFilter returns a valid claims filter
@@ -186,9 +200,16 @@ func NewAgentRequest(basicMessage *comm.BasicMessage) (*AgentRequest, error) {
 	}, nil
 }
 
-func NewClaimsCountParams(groupBy string, limit *uint64, since, until *string) (params ClaimsCountParams, err error) {
+func NewClaimsCountParams(byDate string, byType *bool, filter *[]string, limit *uint64, since, until *string) (params ClaimsCountParams, err error) {
 	const timeFormat = "2006-01-02 15:04:05"
-	params.GroupBy = groupBy
+	params.GroupByDate = byDate
+
+	if byType != nil {
+		params.GroupByType = *byType
+	}
+	if filter != nil {
+		params.FilterByType = *filter
+	}
 
 	params.Limit = 100
 	if limit != nil && *limit > 0 {
@@ -234,5 +255,5 @@ type ClaimsService interface {
 	GetByStateIDWithMTPProof(ctx context.Context, did *w3c.DID, state string) ([]*domain.Claim, error)
 	GetMTProof(ctx context.Context, leafKey *big.Int, root *merkletree.Hash, merkleTreeID int64) (*merkletree.Proof, error)
 	GetMTIDByKey(ctx context.Context, key string) (int64, error)
-	Count(ctx context.Context, params ClaimsCountParams) (total *int64, dates []string, counts []int64, err error)
+	Count(ctx context.Context, params ClaimsCountParams) (ClaimsCountResult, error)
 }

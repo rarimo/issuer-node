@@ -34,14 +34,14 @@ const (
 	ImportIdentityRequestDidMetadataTypeETH ImportIdentityRequestDidMetadataType = "ETH"
 )
 
-// Defines values for GetClaimsCountParamsGroupBy.
+// Defines values for GetClaimsCountParamsGroupByDate.
 const (
-	Day     GetClaimsCountParamsGroupBy = "day"
-	Hour    GetClaimsCountParamsGroupBy = "hour"
-	Month   GetClaimsCountParamsGroupBy = "month"
-	Quarter GetClaimsCountParamsGroupBy = "quarter"
-	Week    GetClaimsCountParamsGroupBy = "week"
-	Year    GetClaimsCountParamsGroupBy = "year"
+	Day     GetClaimsCountParamsGroupByDate = "day"
+	Hour    GetClaimsCountParamsGroupByDate = "hour"
+	Month   GetClaimsCountParamsGroupByDate = "month"
+	Quarter GetClaimsCountParamsGroupByDate = "quarter"
+	Week    GetClaimsCountParamsGroupByDate = "week"
+	Year    GetClaimsCountParamsGroupByDate = "year"
 )
 
 // AgentResponse defines model for AgentResponse.
@@ -64,6 +64,12 @@ type ClaimOfferResponse struct {
 	To       string      `json:"to"`
 	Typ      string      `json:"typ"`
 	Type     string      `json:"type"`
+}
+
+// ClaimsByDate defines model for ClaimsByDate.
+type ClaimsByDate struct {
+	Counts []int64  `json:"counts"`
+	Dates  []string `json:"dates"`
 }
 
 // Config defines model for Config.
@@ -173,9 +179,10 @@ type GetClaimStateStatusResponse struct {
 
 // GetClaimsCountResponse defines model for GetClaimsCountResponse.
 type GetClaimsCountResponse struct {
-	GroupedCounts *[]int64  `json:"grouped_counts,omitempty"`
-	GroupedDates  *[]string `json:"grouped_dates,omitempty"`
-	Total         *int64    `json:"total,omitempty"`
+	ByDate     *ClaimsByDate           `json:"by_date,omitempty"`
+	ByType     map[string]int64        `json:"by_type,omitempty"`
+	ByTypeDate map[string]ClaimsByDate `json:"by_type_date,omitempty"`
+	Total      *int64                  `json:"total,omitempty"`
 }
 
 // GetClaimsResponse defines model for GetClaimsResponse.
@@ -315,21 +322,29 @@ type GetClaimMTPParams struct {
 
 // GetClaimsCountParams defines parameters for GetClaimsCount.
 type GetClaimsCountParams struct {
-	// GroupBy Group by specified part of date of claim creation
-	GroupBy *GetClaimsCountParamsGroupBy `form:"group_by,omitempty" json:"group_by,omitempty"`
+	// GroupByDate Group by specified part of date of claim creation
+	GroupByDate *GetClaimsCountParamsGroupByDate `form:"group_by_date,omitempty" json:"group_by_date,omitempty"`
 
-	// Limit Limit the number of results when grouping by date
+	// GroupByType Group by credential type. Can be used without `group_by_date` to get
+	// the total count of each type.
+	GroupByType *bool `form:"group_by_type,omitempty" json:"group_by_type,omitempty"`
+
+	// FilterType Filter by credential type, e.g. `KYCAgeCredential` or `VotingCredential`.
+	// All counts are affected.
+	FilterType *[]string `form:"filter[type],omitempty" json:"filter[type],omitempty"`
+
+	// Limit Limit the number of results. Works only when grouping by date or type.
 	Limit *uint64 `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// Since UTC timestamp since which the records are queried
+	// Since UTC timestamp since which the records are queried. All counts are affected.
 	Since *string `form:"since,omitempty" json:"since,omitempty"`
 
-	// Until UTC timestamp until which the records are queried
+	// Until UTC timestamp until which the records are queried. All counts are affected.
 	Until *string `form:"until,omitempty" json:"until,omitempty"`
 }
 
-// GetClaimsCountParamsGroupBy defines parameters for GetClaimsCount.
-type GetClaimsCountParamsGroupBy string
+// GetClaimsCountParamsGroupByDate defines parameters for GetClaimsCount.
+type GetClaimsCountParamsGroupByDate string
 
 // GetQrFromStoreParams defines parameters for GetQrFromStore.
 type GetQrFromStoreParams struct {
@@ -760,11 +775,27 @@ func (siw *ServerInterfaceWrapper) GetClaimsCount(w http.ResponseWriter, r *http
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetClaimsCountParams
 
-	// ------------- Optional query parameter "group_by" -------------
+	// ------------- Optional query parameter "group_by_date" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "group_by", r.URL.Query(), &params.GroupBy)
+	err = runtime.BindQueryParameter("form", true, false, "group_by_date", r.URL.Query(), &params.GroupByDate)
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "group_by", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "group_by_date", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "group_by_type" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "group_by_type", r.URL.Query(), &params.GroupByType)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "group_by_type", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "filter[type]" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "filter[type]", r.URL.Query(), &params.FilterType)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter[type]", Err: err})
 		return
 	}
 

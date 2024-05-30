@@ -360,21 +360,44 @@ paths:
         Count all registered claims, optionally grouping by date.
         Grouped records are always in ascending order, but the most
         recent are retrieved when `until` filter is not applied.
+        We only count two types of credentials: `IdentityProviders`
+        (PoH) and `VotingCredential` (passport). Other types are considered
+        outdated and therefore not returned.
       tags:
         - Claim
       security:
         - duneApiKey: []
       parameters:
         - in: query
-          name: group_by
+          name: group_by_date
           description: Group by specified part of date of claim creation
           required: false
           schema:
             type: string
             enum: [hour, day, week, month, quarter, year]
         - in: query
+          name: group_by_type
+          description: |
+            Group by credential type. Can be used without `group_by_date` to get
+            the total count of each type.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: filter[type]
+          description: |
+            Filter by credential type, e.g. `KYCAgeCredential` or `VotingCredential`.
+            All counts are affected.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              example: IdentityProviders
+        - in: query
           name: limit
-          description: Limit the number of results when grouping by date
+          description: Limit the number of results. Works only when grouping by date or type.
           required: false
           schema:
             type: integer
@@ -382,7 +405,7 @@ paths:
             default: 100
         - in: query
           name: since
-          description: UTC timestamp since which the records are queried
+          description: UTC timestamp since which the records are queried. All counts are affected.
           required: false
           schema:
             type: string
@@ -390,7 +413,7 @@ paths:
             example: 2006-01-02 15:04:05
         - in: query
           name: until
-          description: UTC timestamp until which the records are queried
+          description: UTC timestamp until which the records are queried. All counts are affected.
           required: false
           schema:
             type: string
@@ -398,7 +421,7 @@ paths:
             example: 2006-01-02 15:04:05
       responses:
         '200':
-          description: Total claims
+          description: OK
           content:
             application/json:
               schema:
@@ -983,12 +1006,34 @@ components:
         total:
           type: integer
           format: int64
-        grouped_dates:
+        by_type:
+          type: object
+          # map[CredentialType]int64
+          additionalProperties:
+            type: integer
+            format: int64
+          x-go-type-skip-optional-pointer: true
+        by_date:
+          $ref: '#/components/schemas/ClaimsByDate'
+          x-go-type-skip-optional-pointer: true
+        by_type_date:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ClaimsByDate'
+          x-go-type-skip-optional-pointer: true
+
+    ClaimsByDate:
+      type: object
+      required:
+        - dates
+        - counts
+      properties:
+        dates:
           type: array
           items:
             type: string
             example: "2023-10-26 00:00"
-        grouped_counts:
+        counts:
           type: array
           items:
             type: integer

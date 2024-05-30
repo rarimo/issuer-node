@@ -30,6 +30,5 @@ type ClaimsRepository interface {
 	Delete(ctx context.Context, conn db.Querier, id uuid.UUID) error
 	GetClaimsIssuedForUser(ctx context.Context, conn db.Querier, identifier w3c.DID, userDID w3c.DID, linkID uuid.UUID) ([]*domain.Claim, error)
 	GetByStateIDWithMTPProof(ctx context.Context, conn db.Querier, did *w3c.DID, state string) (claims []*domain.Claim, err error)
-	CountTotal(ctx context.Context, conn db.Querier, params ClaimsCountParams) (int64, error)
-	CountGrouped(ctx context.Context, conn db.Querier, params ClaimsCountParams) (dates []string, counts []int64, err error)
+	Count(ctx context.Context, conn db.Querier, params ClaimsCountParams) (ClaimsCountResult, error)
 }

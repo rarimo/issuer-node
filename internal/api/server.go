@@ -575,11 +575,11 @@ func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObje
 		}}, nil
 	}
 
-	var groupBy string
-	if r.Params.GroupBy != nil {
-		switch *r.Params.GroupBy {
+	var byDate string
+	if r.Params.GroupByDate != nil {
+		switch *r.Params.GroupByDate {
 		case Hour, Day, Week, Month, Quarter, Year:
-			groupBy = string(*r.Params.GroupBy)
+			byDate = string(*r.Params.GroupByDate)
 		default:
 			return GetClaimsCount400JSONResponse{N400JSONResponse{
 				Message: "invalid group_by field",
@@ -587,25 +587,42 @@ func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObje
 		}
 	}
 
-	params, err := ports.NewClaimsCountParams(groupBy, r.Params.Limit, r.Params.Since, r.Params.Until)
+	params, err := ports.NewClaimsCountParams(byDate, r.Params.GroupByType, r.Params.FilterType, r.Params.Limit, r.Params.Since, r.Params.Until)
 	if err != nil {
 		return GetClaimsCount400JSONResponse{N400JSONResponse{
 			Message: err.Error(),
 		}}, nil
 	}
 
-	total, dates, counts, err := s.claimService.Count(ctx, params)
+	result, err := s.claimService.Count(ctx, params)
 	if err != nil {
 		return GetClaimsCount500JSONResponse{N500JSONResponse{
 			Message: err.Error(),
 		}}, nil
 	}
 
-	return GetClaimsCount200JSONResponse{
-		Total:         total,
-		GroupedDates:  &dates,
-		GroupedCounts: &counts,
-	}, nil
+	resp := GetClaimsCount200JSONResponse{
+		Total:  result.Total,
+		ByType: result.ByType,
+	}
+
+	if len(result.ByDate.Dates) != 0 {
+		resp.ByDate = new(ClaimsByDate)
+		resp.ByDate.Dates = result.ByDate.Dates
+		resp.ByDate.Counts = result.ByDate.Counts
+	}
+
+	if len(result.ByTypeAndDate) != 0 {
+		resp.ByTypeDate = make(map[string]ClaimsByDate, len(result.ByTypeAndDate))
+		for typ, group := range result.ByTypeAndDate {
+			resp.ByTypeDate[typ] = ClaimsByDate{
+				Dates:  group.Dates,
+				Counts: group.Counts,
+			}
+		}
+	}
+
+	return resp, nil
 }
 
 // GetIdentities is the controller to get identities
