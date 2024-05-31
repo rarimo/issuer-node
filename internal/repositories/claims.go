@@ -16,6 +16,7 @@ import (
 	"github.com/labstack/gommon/log"
 	"github.com/lib/pq"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/rarimo/issuer-node/internal/common"
 	"github.com/rarimo/issuer-node/internal/core/domain"
 	"github.com/rarimo/issuer-node/internal/core/ports"
@@ -1016,6 +1017,114 @@ func (c *claims) GetByStateIDWithMTPProof(ctx context.Context, conn db.Querier, 
 	}
 
 	return claims, nil
+}
+
+func (c *claims) Count(ctx context.Context, conn db.Querier, params ports.ClaimsCountParams) (ports.ClaimsCountResult, error) {
+	q := buildClaimsGroupedCountQuery(params)
+	str, args, err := q.ToSql()
+	if err != nil {
+		panic(err) // engineer's error in buildClaimsGroupedCountQuery
+	}
+
+	rows, err := conn.Query(ctx, str, args...)
+	if err != nil {
+		return ports.ClaimsCountResult{}, err
+	}
+	defer rows.Close()
+
+	return scanClaimsCountResult(params, rows)
+}
+
+func buildClaimsGroupedCountQuery(params ports.ClaimsCountParams) squirrel.SelectBuilder {
+	const (
+		typeColumn      = "schema_type_description"
+		createdAtColumn = "created_at"
+	)
+	q := squirrel.Select("COUNT(id) AS count").From("claims")
+
+	if params.GroupByDate != "" {
+		q = q.Column("to_char(date_trunc(?, created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD HH24:MI:SS') AS date",
+			params.GroupByDate).
+			GroupBy("date").
+			OrderBy("date DESC").
+			Limit(params.Limit)
+	}
+
+	if params.GroupByType {
+		q = q.Column(typeColumn).
+			GroupBy(typeColumn).
+			OrderBy(typeColumn).
+			Limit(params.Limit)
+	}
+
+	if len(params.FilterByType) > 0 {
+		q = q.Where(squirrel.Eq{typeColumn: params.FilterByType})
+	}
+	if params.Since != nil {
+		q = q.Where(squirrel.GtOrEq{createdAtColumn: *params.Since})
+	}
+	if params.Until != nil {
+		q = q.Where(squirrel.LtOrEq{createdAtColumn: *params.Until})
+	}
+
+	return q.PlaceholderFormat(squirrel.Dollar) // required for raw Postgres query
+}
+
+func scanClaimsCountResult(params ports.ClaimsCountParams, rows pgx.Rows) (res ports.ClaimsCountResult, err error) {
+	var (
+		byType = params.GroupByType
+		byDate = params.GroupByDate != ""
+
+		count int64
+		date  string
+		typ   string
+	)
+
+	if !byType && !byDate {
+		res.Total = new(int64)
+		rows.Next()
+		err = rows.Scan(res.Total)
+		return
+	}
+
+	const optCap = 128 // how much memory to sacrifice for quick slice appending
+	res.Counts = make([]int64, 0, optCap)
+	if byType {
+		res.Types = make([]string, 0, optCap)
+	}
+	if byDate {
+		res.Dates = make([]string, 0, optCap)
+	}
+
+	// based on SelectBuilder calls, the order is: count, date, type
+	for rows.Next() {
+		switch {
+		case byType && !byDate:
+			err = rows.Scan(&count, &typ)
+			res.Types = append(res.Types, typ)
+		case !byType: // byDate == true
+			err = rows.Scan(&count, &date)
+			res.Dates = append(res.Dates, date)
+		default:
+			err = rows.Scan(&count, &date, &typ)
+			res.Types = append(res.Types, typ)
+			res.Dates = append(res.Dates, date)
+		}
+
+		res.Counts = append(res.Counts, count)
+		if err != nil {
+			return
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return
+	}
+
+	if lc, ld, lt := len(res.Counts), len(res.Dates), len(res.Types); byDate && lc != ld || byType && lc != lt {
+		err = fmt.Errorf("unexpected lengths: counts=%d, dates=%d, types=%d", lc, ld, lt)
+	}
+	return
 }
 
 func toCredentialDomain(c *dbClaim) *domain.Claim {

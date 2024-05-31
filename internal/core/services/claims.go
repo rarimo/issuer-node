@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	sql "github.com/iden3/go-merkletree-sql/db/pgx/v2"
 	"math/big"
 	"net/url"
 	"strings"
 	"time"
+
+	sql "github.com/iden3/go-merkletree-sql/db/pgx/v2"
 
 	"github.com/google/uuid"
 	core "github.com/iden3/go-iden3-core/v2"
@@ -592,6 +593,32 @@ func (c *claim) GetMTIDByKey(ctx context.Context, key string) (int64, error) {
 	return iMT, nil
 }
 
+func (c *claim) Count(ctx context.Context, params ports.ClaimsCountParams) (ports.ClaimsCountResult, error) {
+	res, err := c.icRepo.Count(ctx, c.storage.Pgx, params)
+	if err != nil {
+		return ports.ClaimsCountResult{}, fmt.Errorf("failed to count claims: %w", err)
+	}
+
+	if params.GroupByDate == "" || !params.GroupByType {
+		return res, nil
+	}
+
+	res.DatesTypes = make(map[string]map[string]int64)
+	for i, date := range res.Dates {
+		entry, ok := res.DatesTypes[date]
+		if !ok { // date encountered for the first time
+			entry = make(map[string]int64)
+		}
+		// for each unique date, we've got an array of unique types:
+		// counts will never be overwritten
+		typ := res.Types[i]
+		entry[typ] = res.Counts[i]
+		res.DatesTypes[date] = entry
+	}
+
+	return res, nil
+}
+
 func (c *claim) revoke(ctx context.Context, did *w3c.DID, nonce uint64, description string, pgx db.Querier) error {
 	rID := new(big.Int).SetUint64(nonce)
 	revocation := domain.Revocation{
@@ -780,4 +807,12 @@ func (c *claim) buildMTProofURL(credID uuid.UUID) string {
 	}
 
 	return fmt.Sprintf("%s/v1/claims/%s/mtp", c.host, credID.String())
+}
+
+func reverseSlice[T any](slice []T) []T {
+	reversed := make([]T, len(slice))
+	for i, v := range slice {
+		reversed[len(slice)-1-i] = v
+	}
+	return reversed
 }

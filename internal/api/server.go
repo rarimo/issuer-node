@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iden3/go-merkletree-sql/v2"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/iden3/go-merkletree-sql/v2"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -567,6 +568,59 @@ func (s *Server) GetClaimStateStatus(ctx context.Context, request GetClaimStateS
 	}, nil
 }
 
+func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObject) (GetClaimsCountResponseObject, error) {
+	if !s.validateDuneAuth(ctx) {
+		return GetClaimsCount401JSONResponse{N401JSONResponse{Message: "unauthorized"}}, nil
+	}
+
+	var byDate string
+	if r.Params.GroupByDate != nil {
+		switch *r.Params.GroupByDate {
+		case Hour, Day, Week, Month, Quarter, Year:
+			byDate = string(*r.Params.GroupByDate)
+		default:
+			return GetClaimsCount400JSONResponse{N400JSONResponse{Message: "invalid group_by field"}}, nil
+		}
+	}
+
+	params, err := ports.NewClaimsCountParams(
+		byDate,
+		r.Params.GroupByType,
+		r.Params.FilterType,
+		r.Params.Limit,
+		r.Params.Since,
+		r.Params.Until,
+	)
+	if err != nil {
+		return GetClaimsCount400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil
+	}
+
+	result, err := s.claimService.Count(ctx, params)
+	if err != nil {
+		return GetClaimsCount500JSONResponse{N500JSONResponse{Message: err.Error()}}, nil
+	}
+
+	resp := GetClaimsCount200JSONResponse{
+		Total:  result.Total,
+		Counts: result.Counts,
+		Dates:  result.Dates,
+		Types:  result.Types,
+	}
+	if len(result.DatesTypes) == 0 {
+		return resp, nil
+	}
+
+	resp.DateTypes = make([]ClaimsCountByDateType, 0, len(result.DatesTypes))
+	for date, types := range result.DatesTypes {
+		resp.DateTypes = append(resp.DateTypes, ClaimsCountByDateType{
+			Date:  date,
+			Types: types,
+		})
+	}
+
+	return resp, nil
+}
+
 // GetIdentities is the controller to get identities
 func (s *Server) GetIdentities(ctx context.Context, request GetIdentitiesRequestObject) (GetIdentitiesResponseObject, error) {
 	var response GetIdentities200JSONResponse
@@ -873,4 +927,15 @@ func writeFile(path string, mimeType string, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", mimeType)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(f)
+}
+
+func (s *Server) validateDuneAuth(ctx context.Context) bool {
+	ctxValue := ctx.Value(ReqReq)
+	if ctxValue == nil {
+		return false
+	}
+
+	r := ctxValue.(http.Request)
+	h := r.Header.Get("X-DUNE-API-KEY")
+	return h == s.cfg.DuneApiKey
 }

@@ -35,6 +35,7 @@ type Configuration struct {
 	Database                     Database      `mapstructure:"Database"`
 	Cache                        Cache         `mapstructure:"Cache"`
 	HTTPBasicAuth                HTTPBasicAuth `mapstructure:"HTTPBasicAuth"`
+	DuneApiKey                   string        `mapstructure:"DuneApiKey"`
 	KeyStore                     KeyStore      `mapstructure:"KeyStore"`
 	Log                          Log           `mapstructure:"Log"`
 	Ethereum                     Ethereum      `mapstructure:"Ethereum"`
@@ -403,6 +404,7 @@ func bindEnv() {
 
 	_ = viper.BindEnv("HTTPBasicAuth.User", "ISSUER_API_AUTH_USER")
 	_ = viper.BindEnv("HTTPBasicAuth.Password", "ISSUER_API_AUTH_PASSWORD")
+	_ = viper.BindEnv("DuneApiKey", "ISSUER_DUNE_API_KEY")
 
 	_ = viper.BindEnv("IPFS.GatewayUrl", "ISSUER_IPFS_GATEWAY_URL")
 
@@ -503,6 +505,10 @@ func checkEnvVars(ctx context.Context, cfg *Configuration) {
 
 	if cfg.HTTPBasicAuth.Password == "" {
 		log.Info(ctx, "ISSUER_API_AUTH_PASSWORD value is missing")
+	}
+
+	if cfg.DuneApiKey == "" {
+		log.Info(ctx, "ISSUER_DUNE_API_KEY value is missing")
 	}
 
 	if cfg.KeyStore.Address == "" {
