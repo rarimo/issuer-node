@@ -590,6 +590,7 @@ func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObje
 		r.Params.Limit,
 		r.Params.Since,
 		r.Params.Until,
+		r.Params.LastDays,
 	)
 	if err != nil {
 		return GetClaimsCount400JSONResponse{N400JSONResponse{Message: err.Error()}}, nil

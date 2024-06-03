@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -197,10 +198,19 @@ func NewAgentRequest(basicMessage *comm.BasicMessage) (*AgentRequest, error) {
 	}, nil
 }
 
-func NewClaimsCountParams(byDate string, byType *bool, filter *[]string, limit *uint64, since, until *string) (params ClaimsCountParams, err error) {
-	const timeFormat = "2006-01-02 15:04:05"
-	params.GroupByDate = byDate
+func NewClaimsCountParams(
+	byDate string,
+	byType *bool,
+	filter *[]string,
+	limit *uint64,
+	since, until *string,
+	lastDays *int,
+) (params ClaimsCountParams, err error) {
 
+	const timeFormat = "2006-01-02 15:04:05"
+	const maxLastDays = 365000
+
+	params.GroupByDate = byDate
 	if byType != nil {
 		params.GroupByType = *byType
 	}
@@ -227,7 +237,18 @@ func NewClaimsCountParams(byDate string, byType *bool, filter *[]string, limit *
 		*params.Until, err = time.Parse(timeFormat, *until)
 		if err != nil {
 			err = fmt.Errorf("invalid until field: %w", err)
+			return
 		}
+	}
+
+	if lastDays != nil {
+		if *lastDays > maxLastDays {
+			err = errors.New("lastDays field out of range")
+			return
+		}
+
+		params.Since = new(time.Time)
+		*params.Since = time.Now().UTC().AddDate(0, 0, -*lastDays)
 	}
 
 	return

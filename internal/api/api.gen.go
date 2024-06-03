@@ -343,6 +343,10 @@ type GetClaimsCountParams struct {
 
 	// Until UTC timestamp until which the records are queried. All counts are affected.
 	Until *string `form:"until,omitempty" json:"until,omitempty"`
+
+	// LastDays Count claims created at the last N days until now. All counts are affected.
+	// This parameter is ignored when `since` is provided.
+	LastDays *int `form:"last_days,omitempty" json:"last_days,omitempty"`
 }
 
 // GetClaimsCountParamsGroupByDate defines parameters for GetClaimsCount.
@@ -822,6 +826,14 @@ func (siw *ServerInterfaceWrapper) GetClaimsCount(w http.ResponseWriter, r *http
 	err = runtime.BindQueryParameter("form", true, false, "until", r.URL.Query(), &params.Until)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "until", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "last_days" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "last_days", r.URL.Query(), &params.LastDays)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "last_days", Err: err})
 		return
 	}
 

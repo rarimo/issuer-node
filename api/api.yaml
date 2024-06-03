@@ -418,6 +418,15 @@ paths:
             type: string
             format: time.Time
             example: 2006-01-02 15:04:05
+        - in: query
+          name: last_days
+          description: |
+            Count claims created at the last N days until now. All counts are affected.
+            This parameter is ignored when `since` is provided.
+          required: false
+          schema:
+            type: integer
+            max: 365000 # millennium
       responses:
         '200':
           description: OK
