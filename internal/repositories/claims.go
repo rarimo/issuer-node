@@ -1037,7 +1037,8 @@ func (c *claims) Count(ctx context.Context, conn db.Querier, params ports.Claims
 
 func buildClaimsGroupedCountQuery(params ports.ClaimsCountParams) squirrel.SelectBuilder {
 	const (
-		typeColumn      = "schema_type_description"
+		typeColAccess   = "data->'type'->>1"
+		typeColAlias    = "schema_type"
 		createdAtColumn = "created_at"
 	)
 	q := squirrel.Select("COUNT(id) AS count").From("claims")
@@ -1051,14 +1052,14 @@ func buildClaimsGroupedCountQuery(params ports.ClaimsCountParams) squirrel.Selec
 	}
 
 	if params.GroupByType {
-		q = q.Column(typeColumn).
-			GroupBy(typeColumn).
-			OrderBy(typeColumn).
+		q = q.Column(typeColAccess + " AS " + typeColAlias).
+			GroupBy(typeColAccess).
+			OrderBy(typeColAlias).
 			Limit(params.Limit)
 	}
 
 	if len(params.FilterByType) > 0 {
-		q = q.Where(squirrel.Eq{typeColumn: params.FilterByType})
+		q = q.Where(squirrel.Eq{typeColAccess: params.FilterByType})
 	}
 	if params.Since != nil {
 		q = q.Where(squirrel.GtOrEq{createdAtColumn: *params.Since})
