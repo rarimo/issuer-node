@@ -610,7 +610,7 @@ func (s *Server) GetClaimsCount(ctx context.Context, r GetClaimsCountRequestObje
 		return resp, nil
 	}
 
-	resp.DateTypes = make([]ClaimsCountByDateType, 0, len(result.DatesTypes))
+	resp = GetClaimsCount200JSONResponse{DateTypes: make([]ClaimsCountByDateType, 0, len(result.DatesTypes))}
 	for date, types := range result.DatesTypes {
 		resp.DateTypes = append(resp.DateTypes, ClaimsCountByDateType{
 			Date:  date,
